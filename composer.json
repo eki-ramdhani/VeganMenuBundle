@@ -14,7 +14,7 @@
         }
     ],
     "autoload":     {
-        "psr-4": { "Vegan\\Bundle\\MenuBundle\\": "" }
+        "psr-4": { "Vegan\\Bundle\\MenuBundle\\": "src" }
     },
     "minimum-stability": "dev"
 }
