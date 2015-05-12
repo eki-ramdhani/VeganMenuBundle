@@ -1,0 +1,24 @@
+services:
+    # URI generator
+    vegan.menu.url.generator:
+        class: Vegan\Bundle\MenuBundle\Menu\VeganUrlGenerator
+        arguments: [@service_container]
+
+    # Classic menu builder
+    vegan.menu.builder:
+        class: Vegan\Bundle\MenuBundle\Menu\MenuBuilder
+        arguments: [@service_container, @vegan.menu.url.generator]
+
+    # Very simple menu builder
+    vegan.menu.simple.builder:
+        class: Vegan\Bundle\MenuBundle\Menu\SimpleDatabaseMenuBuilder
+        arguments: [@doctrine.dbal.default_connection, @request_stack, %locale%]
+
+    # Database menu builder
+    vegan.menu.database.builder:
+        class: Vegan\Bundle\MenuBundle\Menu\DatabaseMenuBuilder
+        arguments: [@service_container, @vegan.menu.url.generator]
+
+    # Nette caching component (perfect for use with VeganMenuBuilder to save and manipulates with cache)
+    nette.caching:
+        class: Vegan\Bundle\MenuBundle\Component\NetteCaching
