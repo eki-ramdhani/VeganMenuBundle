@@ -20,19 +20,19 @@ class NetteCaching
 
     protected $journal = null;
 
+    protected $defaultFolder = null;
+
     /**
      * @param string|null $folder
      */
-    public function __construct($folder = null)
+    public function __construct($folder)
     {
-        if (null === $folder) {
-            $folder = $this->getDefaultFolder();    // default folder: /app/cache/dev|prod/nette
-        }
+        $this->folder = $folder;
         try {
-            $this->journal = new FileJournal($folder);      // IJournal is required for Cache::TAGS
-            $this->storage = new FileStorage($folder, $this->journal);
+            $this->journal = new FileJournal($this->folder);      // IJournal is required for Cache::TAGS
+            $this->storage = new FileStorage($this->folder, $this->journal);
         } catch (\Exception $e) {
-            throw new \InvalidArgumentException("Directory {$folder} was not found! You can omit an argument \$folder and the default folder will be used (/app/cache/[dev|prod]/nette");
+            throw new \InvalidArgumentException("Directory {$this->folder} was not found!");
         }
         $this->cache = new Cache($this->storage);
     }
@@ -86,24 +86,12 @@ class NetteCaching
     }
 
     /**
-     * Not so clean method, but really powerfull (we don't need to inject $kernel or $container to this service
+     * Get default cache folder /app/cache/nette
      *
      * @return string
      */
     public function getDefaultFolder()
     {
-        global $kernel;
-        if ($kernel instanceof \AppCache) {
-            $kernel = $kernel->getKernel();
-        }
-        if ($kernel instanceof \Symfony\Component\HttpKernel\KernelInterface) {
-            $folder = $kernel->getCacheDir().'/nette';
-        } else {
-            throw new \LogicException("Global variable \$kernel is not instace of KernelInterface.");
-        }
-        if (!file_exists($folder)) {
-            mkdir($folder, 0777, true);
-        }
-        return $folder;
+        return $this->folder;
     }
 }
