@@ -25,10 +25,13 @@ class NetteCaching
     protected $folder = null;
 
     /**
-     * @param string|null $folder
+     * @param string $folder
      */
     public function __construct($folder)
     {
+        if (!file_exists($folder)) {
+            mkdir($folder, 0777, true);
+        }
         $this->folder = $folder;
         try {
             $this->journal = new FileJournal($this->folder);      // IJournal is required for Cache::TAGS
