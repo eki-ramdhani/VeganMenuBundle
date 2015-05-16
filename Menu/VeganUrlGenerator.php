@@ -11,7 +11,7 @@ use Symfony\Component\Routing\Generator\UrlGenerator;
 use Symfony\Component\Routing\RouteCollection;
 
 /**
- * VeganUrlGenerator implements clasic Symfony UrlGenerator, but can handle RouteCollection from VeganDynamicRouter
+ * VeganUrlGenerator handle RouteCollection from classic Symfony UrlGenerator, but can handle RouteCollection from VeganDynamicRouter
  */
 class VeganUrlGenerator
 {
