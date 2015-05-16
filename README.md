@@ -71,8 +71,50 @@ Use service **`vegan.menu.builder`** in Symfony2 container and build custom Menu
 ```
 #### 4. Render menu with macro
 
-Now you have variable 
+We have a variable mainMenu inside template, so at first we will render it by default macro from VeganMenuBundle:
 
+```
+{% if mainMenu is defined %}
+    {% import 'VeganMenuBundle:macros.html.twig' as macros %}
+    {{ macros.vegan_menu_render(mainMenu, true) }}
+{% endif %}
+```
+
+#### 5. Write your own macro to render your custom Menu
+
+Great, we rendered simple Menu by default macro. Now we will write own macro and render Menu with more features!
+
+Create file macros.html.twig in your template directory
+```
+{% macro custom_menu_render(menu, displayChildren) %}
+    {% set menuItems = (menu.items.children is defined) ? menu.items.children : menu %} {# don't change this line #}
+    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}  {# and this line #}
+
+    {% if menuItems|length > 0 %}
+        <ul class="my-menu-list{% if menu.active is defined and menu.active %} active{% endif %}">
+            {% for item in menuItems %}
+                <li class="my-item-class{% if item.active is defined and item.active %} active{% endif %}">
+                    <a href="{{ item.uri }}"{% if item.special.linkClass is defined %} class="{{ item.special.linkClass }}"{% endif %}>
+                        {% if item.special.linkIcon is defined %}<i class="{{ item.special.linkIcon }}"></i>{% endif %} {# we can set MenuItem own custom special attributes, by this: $menuItem->special->add('linkIcon', 'fa fa-user'); #}
+                        {{ item.name }}
+                    </a>
+                    {% if displayChildren %}
+                        {% if item.children is defined %}
+                            {{ _self.custom_menu_render(item.children, displayChildren) }}
+                        {% endif %}
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endmacro %}
+```
+and next you can render your menu with your custom macro
+```
+{% import 'YourBundle:macros.html.twig' as macros %}
+{{ macros.custom_menu_render(mainMenu, true) }}
+```
+And we did it :-)
 
 #### Manipulations with Menu
 
