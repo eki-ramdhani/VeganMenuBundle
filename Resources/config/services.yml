@@ -9,11 +9,6 @@ services:
         class: Vegan\MenuBundle\Menu\MenuBuilder
         arguments: [@service_container, @vegan.menu.url.generator]
 
-    # Very simple menu builder
-    vegan.menu.simple.builder:
-        class: Vegan\MenuBundle\Menu\SimpleDatabaseMenuBuilder
-        arguments: [@doctrine.dbal.default_connection, @request_stack, %locale%]
-
     # Database menu builder
     vegan.menu.database.builder:
         class: Vegan\MenuBundle\Menu\DatabaseMenuBuilder
