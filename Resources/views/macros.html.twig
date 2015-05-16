@@ -1,40 +1,64 @@
 
-{# rekurzivní vykreslení celé navigace  #}
-{# TODO: vyřešit routování a která položka je aktivní #}
+{# Recursive macro to render Menu from VeganMenuBundle #}
 
-{% macro vegan_menu(navigation, all) %}
+{% macro vegan_menu_render(menu, displayChildren) %}
+
+    {# THIS MACRO IS DEFAULT, YOU CAN BUILD YOUR OWN MACRO AND RENDER YOUR OWN MENU!  #}
+
+    {% set menuItems = (menu.items.children is defined) ? menu.items.children : menu %}
+    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}
+
+    {% if menuItems|length > 0 %}
     <ul>
-        {% for nav in navigation %}
+        {% for item in menuItems %}
             <li>
-                <a href="{{ vegan_url(nav.route_name) }}" {#% if nav.active %} class="{{ nav.active_class }}" {% endif %#}>{{ nav.name }}</a>
-                {% if all|default(true) %}
-                    {% if nav._children %}
-                        {{ _self.vegan_menu(nav._children, all) }}
+                <a href="{{ item.uri }}">{{ item.name }}</a>
+
+                {% if displayChildren or item.special.displayChildren is defined and item.special.displayChildren %} {# Do you want to display children of this menu item? #}
+
+                    {% if item.children is defined %}
+
+                        {{ _self.vegan_menu_render(item.children, displayChildren) }} {# NOW IS CALLED THE SAME MACRO [recursion] WITH PARAMETER `children` #}
+
                     {% endif %}
+
                 {% endif %}
-            </li>
-        {% endfor %}
-    </ul>
-{% endmacro %}
 
-
-{% macro menu_render(navigation, showAll) %}
-    {% set array = (navigation.items.children is defined) ? navigation.items.children : navigation %}
-    {% set all = (showAll is not same as(false)) ? true : false %}
-
-    {% if array|length > 0 %}
-    <ul class="test-menu">
-        {% for nav in array %}
-            <li class="{% if nav.special.class is defined %}{{ nav.special.class }} {% endif %}{% if nav.active %}active{% endif %}" >
-                {#<a href="{{ vegan_url(nav.routeName) }}" &#123;&#35;% if nav.active %} class="{{ nav.active_class }}" {% endif %&#35;&#125;>{{ nav.name }}</a>#}
-                <a href="{{ nav.uri }}" {#% if nav.active %} class="{{ nav.active_class }}" {% endif %#}>{{ nav.name }}</a>
-                {% if all %}
-                    {% if nav.children is defined %}
-                        {{ _self.menu_render(nav.children, all) }}
-                    {% endif %}
-                {% endif %}
             </li>
         {% endfor %}
     </ul>
     {% endif %}
 {% endmacro %}
+
+{#
+
+Special usage:
+
+class="{% if item.special.class is defined %}{{ item.special.class }} {% endif %}{% if item.active %}active{% endif %}"
+
+#}
+
+{# Sample how you can write your own custom macro! #}
+{% macro custom_menu_render(menu, displayChildren) %}
+    {% set menuItems = (menu.items.children is defined) ? menu.items.children : menu %}{# don't change this .. #}
+    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}{# and dont't change this .. #}
+
+    {% if menuItems|length > 0 %}
+        <ul class="my-menu-list">
+            {% for item in menuItems %}
+                <li class="my-item-class{% if item.active is defined and item.active %} active{% endif %}">
+                    <a href="{{ item.uri }}"{% if item.special.linkClass is defined %} class="{{ item.special.linkClass }}"{% endif %}>
+                        {% if item.special.linkIcon is defined %}<i class="{{ item.special.linkIcon }}"></i>{% endif %} {# we can set MenuItem own custom special attributes, by this: $menuItem->special->add('linkIcon', 'fa fa-user'); #}
+                        {{ item.name }}
+                    </a>
+                    {% if displayChildren %}
+                        {% if item.children is defined %}
+                            {{ _self.custom_menu_render(item.children, displayChildren) }}
+                        {% endif %}
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endmacro %}
+
