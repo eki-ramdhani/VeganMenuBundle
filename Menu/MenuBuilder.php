@@ -7,9 +7,10 @@ namespace Vegan\MenuBundle\Menu;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Routing\CompiledRoute;
-use Vegan\Component\ObjectManipulator;
-use Vegan\Component\SlugGenerator;
+use Vegan\MenuBundle\Component\ObjectManipulator;
+use Vegan\MenuBundle\Component\SlugGenerator;
 use Symfony\Component\Routing\Generator\UrlGenerator;
+use Nette\Caching\Cache;
 
 /**
  * MenuBuilder or how to build own Menu
@@ -424,7 +425,7 @@ class MenuBuilder
         if (true === $this->useCache)
         {
             $this->cache->save('vegan.menu.'.$this->menu->getAnchor().'.'.$this->locale, $this->menu, array(
-                \Nette\Caching\Cache::TAGS => array("menu/{$this->menu->getAnchor()}"),
+                Cache::TAGS => array("menu/{$this->menu->getAnchor()}"),
             ));
 
             // TODO: vyřešit, jak dlouho se obsah bude cachovat
@@ -435,7 +436,7 @@ class MenuBuilder
                 /** Need to clean cache */
                 $this->cache->remove('vegan.menu.'.$this->menu->getAnchor().'.'.$this->locale);
                 $this->cache->clean(array(
-                    \Nette\Caching\Cache::TAGS => array("menu/{$this->menu->getAnchor()}"),
+                    Cache::TAGS => array("menu/{$this->menu->getAnchor()}"),
                 ));
             }
         }
@@ -718,7 +719,7 @@ class MenuBuilder
     public function loadCache()
     {
         if (!$this->container->has('nette.caching')) {
-            throw new \Exception("Component `nette.caching` is not available in container!");
+            throw new \Exception("Component `nette.caching` is not available in container! Please install nette/caching by: composer require nette/caching");
         }
         $cache = $this->container->get('nette.caching')->getCache();
         $this->cache = $cache;
