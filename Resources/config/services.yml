@@ -14,6 +14,7 @@ services:
         class: Vegan\MenuBundle\Menu\DatabaseMenuBuilder
         arguments: [@service_container, @vegan.menu.url.generator]
 
-    # Nette caching component (perfect for use with VeganMenuBuilder to save and manipulates with cache)
+    # nette/caching component incorporation into Symfony2
     nette.caching:
         class: Vegan\MenuBundle\Component\NetteCaching
+        arguments: [%kernel.cache_dir%/nette]

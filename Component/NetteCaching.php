@@ -18,9 +18,11 @@ class NetteCaching
     /** @var Cache $cache */
     protected $cache = null;
 
+    /** @var FileJournal|null $journal */
     protected $journal = null;
 
-    protected $defaultFolder = null;
+    /** @var string $folder */
+    protected $folder = null;
 
     /**
      * @param string|null $folder
@@ -85,13 +87,4 @@ class NetteCaching
         $this->cache = $cache;
     }
 
-    /**
-     * Get default cache folder /app/cache/nette
-     *
-     * @return string
-     */
-    public function getDefaultFolder()
-    {
-        return $this->folder;
-    }
 }
