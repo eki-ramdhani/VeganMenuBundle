@@ -1,6 +1,6 @@
 <?php
 
-namespace Vegan\Bundle\MenuBundle;
+namespace Vegan\MenuBundle;
 
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 
