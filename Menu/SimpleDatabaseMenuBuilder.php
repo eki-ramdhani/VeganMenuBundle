@@ -4,7 +4,7 @@
  * Date: 3.5.15 11:31
  */
 
-namespace Vegan\Bundle\MenuBundle\Menu;
+namespace Vegan\MenuBundle\Menu;
 
 use Doctrine\DBAL\Driver\Connection;
 use Doctrine\ORM\Query;

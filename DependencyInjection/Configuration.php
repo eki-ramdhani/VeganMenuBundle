@@ -1,6 +1,6 @@
 <?php
 
-namespace Vegan\Bundle\MenuBundle\DependencyInjection;
+namespace Vegan\MenuBundle\DependencyInjection;
 
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;

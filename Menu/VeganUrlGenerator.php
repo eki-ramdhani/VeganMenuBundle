@@ -4,7 +4,7 @@
  * Date: 10.5.15 16:42
  */
 
-namespace Vegan\Bundle\MenuBundle\Menu;
+namespace Vegan\MenuBundle\Menu;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Routing\Generator\UrlGenerator;

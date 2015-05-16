@@ -3,7 +3,7 @@
  * @author Lukáš Brzák <lukas.brzak@email.cz>
  */
 
-namespace Vegan\Bundle\MenuBundle\Menu;
+namespace Vegan\MenuBundle\Menu;
 
 use Doctrine\DBAL\Connection;
 use Nette\Caching\Cache;

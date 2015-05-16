@@ -4,7 +4,7 @@
  * Date: 9.5.15 18:46
  */
 
-namespace Vegan\Bundle\MenuBundle\Menu;
+namespace Vegan\MenuBundle\Menu;
 
 // TODO: dodělat Persistor, který bude umět ukládat struktury Menu
 

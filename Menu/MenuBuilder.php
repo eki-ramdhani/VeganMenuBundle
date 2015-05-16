@@ -3,7 +3,7 @@
  * @author Lukáš Brzák <lukas.brzak@email.cz>
  */
 
-namespace Vegan\Bundle\MenuBundle\Menu;
+namespace Vegan\MenuBundle\Menu;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Routing\CompiledRoute;

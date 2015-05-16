@@ -4,7 +4,7 @@
  * Date: 12.5.15 10:53
  */
 
-namespace Vegan\Bundle\MenuBundle\Component;
+namespace Vegan\MenuBundle\Component;
 
 use Nette\Caching\Cache;
 use Nette\Caching\Storages\FileStorage;

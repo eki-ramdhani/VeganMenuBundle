@@ -4,7 +4,7 @@
  * Date: 11.5.15 21:07
  */
 
-namespace Vegan\Component;
+namespace Vegan\MenuBundle\Component;
 
 
 class ObjectManipulator

@@ -1,6 +1,6 @@
 <?php
 
-namespace Vegan\Bundle\MenuBundle\DependencyInjection;
+namespace Vegan\MenuBundle\DependencyInjection;
 
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\Config\FileLocator;

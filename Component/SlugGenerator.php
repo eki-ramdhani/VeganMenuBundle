@@ -5,7 +5,7 @@
  * komponenta pro převedení textu na user-friendly url
  */
 
-namespace Vegan\Component;
+namespace Vegan\MenuBundle\Component;
 
 /**
  * Component that can generate friendly-url based string

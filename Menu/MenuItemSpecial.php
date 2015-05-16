@@ -4,7 +4,7 @@
  * Date: 9.5.15 19:10
  */
 
-namespace Vegan\Bundle\MenuBundle\Menu;
+namespace Vegan\MenuBundle\Menu;
 
 /**
  * Class where you can store multiple information for menu, like any HTML variable (class="", data-href="", data-*="" e.g.)
