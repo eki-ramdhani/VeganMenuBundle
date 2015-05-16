@@ -1,14 +1,14 @@
 # VeganMenuBundle
-VeganMenuBundle for easy menus with Symfony2!
+Build your Menus simply!
 
-Contains object-oriented MenuBuilder with powerful caching tool helpful for database menus. MenuBuilder 
+Contains object-oriented **`MenuBuilder`** with powerful caching tool helpful for database menus. Also contains database driven **`DynamicMenuBuilder`**.
 
-#### 1. Install it by composer:
+#### 1. Install it by composer
 ```
 composer require vegan/menu-bundle
 ```
 
-#### 2. allow in your AppKernel:
+#### 2. Configuration in /app/AppKernel.php
 
 ```php
 /* /app/AppKernel.php */
@@ -16,7 +16,7 @@ public function registerBundles()
 {
     $bundles = array(
         new Vegan\MenuBundle\VeganMenuBundle()
-        // ... your bundles
+        // ... your custom bundles
     );
     
     // ... require dev bundles ...
@@ -25,33 +25,32 @@ public function registerBundles()
 }
 ```
 
-#### 3. Create you own Menu!
+#### 3. Create your own Menu (manual version)
 
-* Use service 'vegan.menu.builder' in container and build custom Menu! *
+Use service **`vegan.menu.builder`** in Symfony2 container and build custom Menu!
 
 ```php
  $builder = $this->container->get('vegan.menu.builder');
  // $builder->enableCache();     // you can turn on menu caching (very powerfull tool if you load menu from database)
  // $builder->disableCache();    // of course you can turn off menu caching
  
- // $defaultMenuOptions = $builder->getDefaultMenuOptions();   // you can dump this menu options and you will see how is possible to change anything
+ // $defaultMenuOptions = $builder->getDefaultMenuOptions();   // you can dump whole menu options and you will see what is possible to change in Menu
  
  $builder
-    ->createMenu($menuAnchor = 'main-menu',
-                 $defaultRouteName = '_my_route_name',
-                 $defaultLocale = 'en_US',
-                 $defaultMenuOptions = array()
-    );
-
- $builder
-    ->createItem('item-1', array(           // first required parameter is `anchor` = it's simply the unique key, by you can grab that menu item and manipulate with (very useful because you can grab 
+    ->createMenu($menuAnchor = 'main-menu',             // menu `anchor` is unique key whereby we can grab the menu in the template (irrespective of language translation)
+                 $defaultRouteName = '_my_route_name',  // default route name (will be used when we'll not specify MenuItem option `route_name`)
+                 $defaultLocale = 'en_US',              // locale is necessary for caching menus
+                 $optionalMenuOptions = array()         // will be merged with default Menu options (as we dumped from $defaultMenuOptions)
+    )
+    ->createItem('item-1', array(           // first required parameter is `anchor` = it's simply the unique key, whereby you can grab that MenuItem and manipulate with (very useful because you can grab any translation of MenuItem by this anchor) 
         'name' => 'My root menu item 1',    // option `name` will be displayed in frontend
         'slug' => 'my-root-menu-item-1',    // option `slug` can be unique URI identification key
         'permalink_generate' => true,       // option `permalink_generate` will auto generate `permalink` (it is unique URI identificator with whole menu tree parents of this item)
     ))
     ->createItem('item-2', array(
         'name' => 'My menu item number 2!',
-        'slug_generate' => true,        // `slug` is unique menu item URI identifier
+        'route_name' => '_my_route',    // `route_name` from Symfony Router or from VeganDynamicRouter
+        'slug_generate' => true,        // `slug` is menu item URI identifier
         'permalink_generate' => true,   // `permalink` is unique URI identifier based on whole menu tree slugs (e.g. main-item/secondary-item/third-item) 
         'parent' => 'item-3',           // yeah, parent is not created yet! but we will create it after this menu item:
     ))
@@ -65,7 +64,15 @@ public function registerBundles()
  
  /* now you can pass $mainMenu from your Controller to the Twig template! */
  
+ return $this->render(':your-custom-template.html.twig', array(
+    'mainMenu' => $mainMenu,
+ ));
+ 
 ```
+#### 4. Render menu with macro
+
+Now you have variable 
+
 
 #### Manipulations with Menu
 
@@ -99,6 +106,24 @@ In many cases we want to build menus from database.
 It's great to have dynamic Menus and manipulate with them by CMS or Administration system. 
 
 Great, now I will show you how you can generate 3 separate menus (main-menu, left-menu and footer-menu) and every request will return only cached results without database queries!
+
+##### 1. Install database structure
+
+You can dump SQL in console command:
+```
+php app/console doctrine:schema:update --dump-sql
+```
+
+Or you can force update your database schema:
+```
+php app/console doctrine:schema:update --force
+```
+##### 2. configure EntityManager for use inside VeganMenuBundle
+
+```
+# /app/config/config.yml
+
+```
 
 ```php
 $loadMenuAnchors = array('main-menu', 'left-menu', 'footer-menu');
