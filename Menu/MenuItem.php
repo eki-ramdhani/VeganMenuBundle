@@ -5,7 +5,9 @@
 
 namespace Vegan\MenuBundle\Menu;
 
+use Doctrine\ORM\NoResultException;
 use Symfony\Component\Routing\Generator\UrlGenerator;
+use Doctrine\Common\Collections\ArrayCollection;
 
 /**
  * Single menu item object
@@ -48,15 +50,42 @@ class MenuItem
     /** @var integer|null $level Tree level => root has level 0, first inserted MenuItem has 1 */
     private $level = null;
 
-    /** @var MenuItemSpecial $special */
-    private $special = null;
+    /** @var ArrayCollection $attributes */
+    private $attributes = null;
+
 
     public function __construct($anchor)
     {
         $this->anchor = $anchor;
         $this->children = array();
+        $this->attributes = new ArrayCollection();
     }
 
+    //----
+
+    public function getAnchor()
+    {
+        return $this->anchor;
+    }
+
+    //----
+
+    public function getId()
+    {
+        return $this->id;
+    }
+
+    public function hasId()
+    {
+        return $this->id !== null;
+    }
+
+    public function setId($id)
+    {
+        $this->id = $id;
+    }
+
+    //----
 
     public function isRoot()
     {
@@ -110,10 +139,22 @@ class MenuItem
         return $result;
     }
 
-    public function getAnchor()
+    public function getParent()
     {
-        return $this->anchor;
+        return $this->parent;
     }
+
+    public function hasParent()
+    {
+        return $this->parent !== null;
+    }
+
+    public function setParent(MenuItem $item)
+    {
+        $this->parent = $item;
+    }
+
+    //----
 
     public function getName()
     {
@@ -130,6 +171,135 @@ class MenuItem
         $this->name = $name;
     }
 
+    //----
+
+    public function getAttributes()
+    {
+        return $this->attributes;
+    }
+
+    public function hasAttributes()
+    {
+        return $this->attributes->count() > 0;
+    }
+
+    public function removeAttributes()
+    {
+        $this->attributes->clear();
+    }
+
+    public function replaceAttributes(ArrayCollection $attributes)
+    {
+        $this->attributes = $attributes;
+    }
+
+    /**
+     * @param array|ArrayCollection $attributes
+     * @param bool $rewrite
+     * @return int
+     */
+    public function addAttributes($attributes, $rewrite = true)
+    {
+        $added = 0;
+        foreach ($attributes as $key => $value) {
+            if (true === $rewrite) {
+                $this->attributes->set($key, $value);
+                $added++;
+            } else {
+                $attr = $this->attributes->get($key);
+                if (null === $attr) {
+                    $this->attributes->set($key, $value);
+                    $added++;
+                }
+            }
+        }
+        return $added;
+    }
+
+    /**
+     * Get MenuItem attribute by `key`
+     *
+     * @param $attributeKey
+     * @return mixed|null
+     */
+    public function get($attributeKey)
+    {
+        return $this->attributes->get($attributeKey);   // if attributeKey is not defined, then return null!
+    }
+
+    /**
+     * Has MenuItem some attribute?
+     *
+     * @param $attributeKey
+     * @return bool
+     */
+    public function has($attributeKey)
+    {
+        return $this->hasAttribute($attributeKey);
+    }
+
+    //----
+
+    /**
+     * Get attribute by key. Will throw Exception if attribute is null!
+     * @param $attributeKey
+     * @return mixed|null
+     */
+    public function getAttribute($attributeKey)
+    {
+        $attr = $this->attributes->get($attributeKey);
+        if (null === $attr) {
+            throw new \InvalidArgumentException("MenuItem `{$this->getAnchor()}` has no attribute with \$key `{$attributeKey}`");
+        }
+        return $attr;
+    }
+
+    public function hasAttribute($attributeKey)
+    {
+        return $this->attributes->get($attributeKey) !== null;
+    }
+
+    public function addAttribute($attributeKey, $value)
+    {
+        $this->setAttribute($attributeKey, $value, false);
+    }
+
+    public function setAttribute($attributeKey, $value, $rewrite = true)
+    {
+        $attr = $this->attributes->get($attributeKey);
+        if (null !== $attr && false === $rewrite) {
+            throw new \InvalidArgumentException("MenuItem `{$this->getAnchor()}` already has attribute `{$attributeKey}`");
+        }
+        $this->attributes->set($attributeKey, $value);
+    }
+
+    public function removeAttribute($attributeKey)
+    {
+        $this->attributes->remove($attributeKey);
+    }
+
+    public function getAttr($attributeKey)
+    {
+        return $this->getAttribute($attributeKey);
+    }
+
+    public function setAttr($attributeKey, $value, $rewrite = true)
+    {
+        $this->setAttribute($attributeKey, $value, $rewrite);
+    }
+
+    public function hasAttr($attributeKey)
+    {
+        return $this->hasAttribute($attributeKey);
+    }
+
+    public function removeAttr($attributeKey)
+    {
+        $this->removeAttribute($attributeKey);
+    }
+
+    //----
+
     public function addChild(MenuItem $item)
     {
         if ($item->getAnchor() === 'root') {
@@ -141,40 +311,27 @@ class MenuItem
         $this->children[$item->getAnchor()] = $item;
     }
 
-    public function hasChild($anchor)
+    public function hasChild($itemAnchor)
     {
-        return array_key_exists($anchor, $this->children);
+        return array_key_exists($itemAnchor, $this->children);
     }
 
-    public function getChild($anchor)
+    public function getChild($itemAnchor)
     {
-        if (!$this->hasChild($anchor)) {
+        if (!$this->hasChild($itemAnchor)) {
             return false;
         }
-        return $this->children[$anchor];
+        return $this->children[$itemAnchor];
     }
 
-    public function removeChild($anchor)
+    public function removeChild($itemAnchor)
     {
-        if ($this->hasChild($anchor)) {
-            unset($this->children[$anchor]);
+        if ($this->hasChild($itemAnchor)) {
+            unset($this->children[$itemAnchor]);
         }
     }
 
-    public function getParent()
-    {
-        return $this->parent;
-    }
-
-    public function hasParent()
-    {
-        return $this->parent !== null;
-    }
-
-    public function setParent(MenuItem $item)
-    {
-        $this->parent = $item;
-    }
+    //----
 
     /**
      * @return MenuItem[]
@@ -193,29 +350,52 @@ class MenuItem
     }
 
     /**
+     * @param MenuItem[] $children
+     */
+    public function setChildren(array $children = array())
+    {
+        $result = array();
+        foreach ($children as $child) {
+            if (!($child instanceof MenuItem)) {
+                throw new \InvalidArgumentException("You tried setChildren at MenuItem `{$this->getAnchor()}`, but some child is not instance of MenuItem.");
+            }
+            $result[$child->getAnchor()] = $child;
+        }
+        $this->children = $children;
+    }
+
+    /**
      * @param MenuItem[] $children Array of MenuItem
-     * @param bool $rewrite
+     * @param bool $rewrite Do you want rewrite adding $children?
+     *
+     * @return int Count of all added children
      */
     public function addChildren(array $children = array(), $rewrite = false)
     {
+        $added = 0;
         foreach ($children as $child) {
             if (!($child instanceof MenuItem)) {
                 continue;
             }
             if (true === $rewrite) {
                 $this->children[$child->getAnchor()] = $child;
+                $added++;
             } else {
                 try {
                     $this->addChild($child);
+                    $added++;
                 } catch (\Exception $e) {}
             }
         }
+        return $added;
     }
 
     public function removeChildren()
     {
         $this->children = array();
     }
+
+    //----
 
     public function getRouteName()
     {
@@ -232,19 +412,21 @@ class MenuItem
         $this->routeName = $routeName;
     }
 
+    //----
+
     public function getUri()
     {
         return $this->uri;
     }
 
-    public function setUri($uri)
-    {
-        $this->uri = $uri;
-    }
-
     public function hasUri()
     {
         return $this->uri !== null;
+    }
+
+    public function setUri($uri)
+    {
+        $this->uri = $uri;
     }
 
     /**
@@ -263,8 +445,9 @@ class MenuItem
         }
 
         $uri = $generator->generate($this->routeName, $options, $pathType);
-        dump($uri);
     }
+
+    //----
 
     public function getSlug()
     {
@@ -281,6 +464,8 @@ class MenuItem
         $this->slug = $slug;
     }
 
+    //----
+
     public function getPermalink()
     {
         return $this->permalink;
@@ -296,9 +481,16 @@ class MenuItem
         $this->permalink = $permalink;
     }
 
+    //----
+
     public function getLocale()
     {
         return $this->locale;
+    }
+
+    public function hasLocale()
+    {
+        return $this->locale !== null;
     }
 
     public function setLocale($locale)
@@ -306,21 +498,13 @@ class MenuItem
         $this->locale = $locale;
     }
 
-    /**
-     * Is MenuItem active?
-     *
-     * @return boolean
-     */
+    //----
+
     public function isActive()
     {
         return $this->active;
     }
 
-    /**
-     * Set MenuItem as active or inactive (true | false)
-     *
-     * @param boolean|integer $status Value must be one of: true|false|0|1
-     */
     public function setActive($status = true)
     {
         if (is_int($status) && ($status === 1 || $status === 0)) {
@@ -332,20 +516,29 @@ class MenuItem
         $this->active = $status;
     }
 
-    /**
-     * Get status of MenuItem
-     *
-     * @return bool
-     */
     public function getActive()
     {
         return $this->active;
     }
 
-    public function getLevel()
+    //----
+
+    public function getLevel($autoGenerate = true)
     {
-        $this->generateLevel();
+        if (true === $autoGenerate) {
+            $this->generateLevel();
+        }
         return $this->level;
+    }
+
+    public function hasLevel()
+    {
+        return $this->level !== null;
+    }
+
+    public function setLevel($level)
+    {
+        $this->level = $level;
     }
 
     public function generateLevel()
@@ -357,77 +550,6 @@ class MenuItem
             $level++;
         }
         $this->level = $level;
-    }
-
-
-    public function getSpecial()
-    {
-        return $this->special;
-    }
-
-    public function hasSpecial()
-    {
-        return $this->special !== null;
-    }
-
-    public function setSpecial(MenuItemSpecial $special)
-    {
-        if (!$this->hasSpecial()) {
-            $this->createSpecial();
-        }
-
-        $this->special = $special;
-    }
-
-    public function createSpecial()
-    {
-        $this->special = new MenuItemSpecial();
-    }
-
-
-    public function addSpecialValue($key, $value, $rewrite = false)
-    {
-        if (!$this->hasSpecial()) {
-            $this->createSpecial();
-        }
-        if ($this->special->has($key) && false === $rewrite) {
-            throw new \InvalidArgumentException("MenuItem `{$this->getAnchor()}` already has special with key `{$key}`");
-        }
-        if (true === $rewrite) {
-            $this->special->set($key, $value);
-        } else {
-            $this->special->add($key, $value);
-        }
-    }
-
-    public function addSpecialArray(array $array = array(), $rewrite = false)
-    {
-        if (!$this->hasSpecial()) {
-            $this->createSpecial();
-        }
-        if (count($array) === 0) {
-            return;
-        }
-        if (true === $rewrite) {
-            $this->special->setArray($array);
-        } else {
-            $this->special->addArray($array);
-        }
-    }
-
-    public function getId()
-    {
-        return $this->id;
-    }
-
-    public function setId($id)
-    {
-        $this->id = $id;
-    }
-
-    public function hasId()
-    {
-        return $this->id !== null;
     }
 
 }

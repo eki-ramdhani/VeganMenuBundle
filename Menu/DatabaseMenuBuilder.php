@@ -5,6 +5,7 @@
 
 namespace Vegan\MenuBundle\Menu;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Query;
 use Nette\Caching\Cache;
@@ -41,32 +42,20 @@ class DatabaseMenuBuilder
     /**
      * @param ContainerInterface $container
      * @param VeganUrlGenerator $generator
-     * @param EntityManager $entityManager
      */
-    public function __construct(ContainerInterface $container, VeganUrlGenerator $generator, EntityManager $entityManager = null)
+    public function __construct(ContainerInterface $container, VeganUrlGenerator $generator)
     {
         $this->container = $container;
         $this->generator = $generator;
         $this->menuCollection = new MenuCollection();
 
-        $this->entityManager = ($entityManager instanceof \Doctrine\ORM\EntityManagerInterface) ? $entityManager : $container->get('doctrine.orm.default_entity_manager');
+        $this->entityManager = $container->get('vegan.menu.entity_manager');
         $request = $this->container->get('request');
         $request->setDefaultLocale($container->getParameter('locale'));
         $this->locale = $request->getLocale();
     }
 
-    /**
-     * If you want to set another EntityManager before run method `generate()`
-     *
-     * @param \Doctrine\ORM\EntityManagerInterface $entityManager
-     */
-    public function setEntityManager(\Doctrine\ORM\EntityManagerInterface $entityManager)
-    {
-        $this->entityManager = $entityManager;
-    }
-
-    /** @internal */
-    private function cache($useCache = true)
+    public function cache($useCache = true)
     {
         if (true === $useCache) {
             $this->cache = $this->container->get('nette.caching')->getCache();
@@ -76,17 +65,11 @@ class DatabaseMenuBuilder
         $this->useCache = (bool)$useCache;
     }
 
-    /**
-     * Enable Nette/Caching component for DatabaseMenuBuilder and speed up you Menu generations (you can simply clean cache if you want rebuild Menu tree)
-     */
     public function cacheEnable()
     {
         $this->cache(true);
     }
 
-    /**
-     * Disable Nette/Caching component and every Request will look to the database (for actual items)
-     */
     public function cacheDisable()
     {
         $this->cache(false);
@@ -141,20 +124,14 @@ class DatabaseMenuBuilder
     }
 
 
-    public function setActiveItem($URI)
+    public function setActiveItem(array $by = array())
     {
-        $this->isLoaded();
-
-        $anchors = $this->menuCollection->getAllMenuAnchors();
-        foreach ($anchors as $anchor) {
-            $menu = $this->menuCollection->getMenu($anchor);
-            // TODO: activate MenuItem by URI
-        }
+        // TODO: nastavit aktuální položku menu podle různých parametrů nebo kritérií
     }
 
 
     /**
-     * Get whole loaded MenuCollection
+     * Get result of loaded MenuCollection
      *
      * @return MenuCollection
      * @throws \Exception
@@ -168,18 +145,21 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Method that will generate MenuCollection from array $anchors (`anchor` is unique menu identifier)
+     * The method, which generates the desired menus (identification by `anchor` a unique anchor of the entire menu, like 'footer' or 'main' etc.).
      *
-     * Every menu has own cache by identifier: vegan.menu.[anchor].[locale] so you can clean or remove only some menus from cache
+     * This method can use content caching, so there is no need to generate database queries every Request!
      *
-     * @param array $anchors        Menu anchors you want generate
-     * @param array $rootNodes      Menu ROOT nodes you want to generate for Menu anchors (for example 'main-menu'.'guitar'
-     * @param array $menuOptions
+     *      Every cached menu has own identifier: vegan.menu.[anchor].[locale] so you can clean from cache Menus you want simply:
+     *          $cache->remove('vagen.menu.footer.en_US');
+     *
+     * @param array $anchors      Which menu `anchor` we want load?
+     * @param array $rootNodes    Do you want associate Root node for some menu?
+     * @param array $menuOptions  Do you want pass to the menu default options? array('menu-anchor' => $menuOptions)
      */
     public function generate(array $anchors = array(), array $rootNodes = array(), array $menuOptions = array())
     {
         /**
-         * At first we will look to the Cache system and will try to fetch some cached Menus
+         * At first we will look to the Cache system and will try to fetch some cached items.
          */
         $cachedMenus = array();
         if (true === $this->useCache) {
@@ -187,10 +167,10 @@ class DatabaseMenuBuilder
                 $this->cache(true);
             }
             foreach ($anchors as $index => $anchor) {
-                // for example: vegan.menu.footer.cs_CZ
+
                 $menuKey = 'vegan.menu.'.$anchor.'.'.$this->locale;
                 if (array_key_exists($anchor, $rootNodes)) {
-                    // we want to display some Node, so we have to look to the node caching
+
                     $menuKey .= '.' . $rootNodes[$anchor];
                 }
                 $menu = $this->cache->load($menuKey);
@@ -203,7 +183,7 @@ class DatabaseMenuBuilder
 
         $packOfMenuID = array();
 
-        /** We will choose Menu IDs */
+        /** Load all Menus */
 
         $menus = $this->findMenus($anchors);
 
@@ -212,12 +192,13 @@ class DatabaseMenuBuilder
         foreach ($menus as $index => $row) {
             if (!array_key_exists($row['anchor'], $builders)) {
                 $options = array_key_exists($row['anchor'], $menuOptions) ? $menuOptions[$row['anchor']] : array();
-                $builders[$row['anchor']] = (new MenuBuilder($this->container, $this->generator, $this->useCache))->createMenu($row['anchor'], $options, $this->locale);
+
+                $builders[$row['anchor']] = (new MenuBuilder($this->container, $this->generator, $this->useCache))->createMenu($row['anchor'], $row['default_route'], $this->locale, $options);
             }
             $packOfMenuID[] = $row['id'];
         }
 
-        /** Next we will find whole Menus tree (by one query for all menus..) */
+        /** Load Menu tree */
 
         $tree = $this->findItems($packOfMenuID);
         $defaultRoutes = array();
@@ -235,6 +216,7 @@ class DatabaseMenuBuilder
                 'permalink' => $row['permalink'],
                 'route_name' => $row['route_name'],
                 'locale' => $row['locale'],
+                'attributes' => new ArrayCollection(array('class' => 'nav nav-pills')),
             );
 
             if (is_null($options['parent']) || empty($options['parent'])) {
@@ -301,11 +283,11 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Method for getting Menu
+     * Get Menus from database
      *
      * @internal
      *
-     * @param array $anchors    Array of Menu anchors we want to find
+     * @param array $anchors
      * @param bool $loadAll
      *
      * @return array
@@ -318,10 +300,11 @@ class DatabaseMenuBuilder
 
         $builder = $this->entityManager->createQueryBuilder();
         $builder
+            ->from('VeganMenuBundle:VeganMenu', 'menu')
             ->select('menu.id')
             ->addSelect('menu.anchor')
             ->addSelect('translation.name')
-            ->from('VeganMenuBundle:VeganMenu', 'menu')
+            ->addSelect('translation.defaultRoute AS default_route')
             ->leftJoin('menu.translation', 'translation')
             ->where('menu.deletedAt is null')
             ->andWhere('menu.isActive = 1')
@@ -339,7 +322,7 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Method for getting whole Menu tree (find by pack of Menu IDs)
+     * Get menus tree from database (by 1 query we will find Menu tree for every menu)
      *
      * @param array $packOfMenuID
      * @return array
@@ -362,8 +345,6 @@ class DatabaseMenuBuilder
             ->leftJoin('item.menu', 'menu')
             ->leftJoin('menu.translation', 'menuTranslation')
             ->where($builder->expr()->in('item.menu', $packOfMenuID))
-            ->andWhere('item.isActive = 1')
-            ->andWhere('item.deletedAt IS NULL')
             ->addSelect('translation.name')
             ->addSelect('translation.slug')
             ->addSelect('translation.permalink')
@@ -386,7 +367,7 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Get default Menu options (from MenuBuilder)
+     * Get default Menu options [global variables that you can override]
      *
      * @return array
      */
@@ -397,9 +378,9 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Check if MenuCollection was loaded
+     * Check if collection of menus was loaded
      *
-     * @throws \Exception If MenuCollection was not loaded
+     * @throws \Exception
      */
     private function isLoaded()
     {
