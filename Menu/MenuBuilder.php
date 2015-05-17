@@ -470,18 +470,20 @@ class MenuBuilder
                 }
                 $options = array();
 
-                /** HACK how we can access to the private (or protected) variables inside some Object like Route::$compiled */
+                /** HACK how we can access to the private (or protected) variables inside some Object like Route::$compiled [there is information about route needed parameters] */
                 $routeObjectAsArray = ObjectManipulator::objectToArray($route);
                 /** @var CompiledRoute $compiled */
                 $compiled = $routeObjectAsArray['compiled'];
 
-                $variables = $compiled->getVariables();
+                if (!is_null($compiled)) {
+                    $variables = $compiled->getVariables();
 
-                foreach ($variables as $index => $key)
-                {
-                    $callable = array($child, 'get'.ucfirst(strtolower($key)));
-                    if (is_callable($callable)) {
-                        $options[$key] = call_user_func($callable);
+                    foreach ($variables as $index => $key)
+                    {
+                        $callable = array($child, 'get'.ucfirst(strtolower($key)));
+                        if (is_callable($callable)) {
+                            $options[$key] = call_user_func($callable);
+                        }
                     }
                 }
 

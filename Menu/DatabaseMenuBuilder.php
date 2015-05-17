@@ -6,6 +6,8 @@
 namespace Vegan\MenuBundle\Menu;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\Query;
 use Nette\Caching\Cache;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -14,6 +16,9 @@ class DatabaseMenuBuilder
 {
     /** @var Connection $connection Database connection (Could be Doctrine DBAL or PHP \PDO */
     protected $connection;
+
+    /** @var \Doctrine\ORM\EntityManager $entityManager */
+    protected $entityManager;
 
     /** @var string $locale Default locale */
     protected $locale;
@@ -40,12 +45,15 @@ class DatabaseMenuBuilder
     /**
      * @param ContainerInterface $container
      * @param VeganUrlGenerator $generator
+     * @param EntityManager $entityManager
      */
-    public function __construct(ContainerInterface $container, VeganUrlGenerator $generator)
+    public function __construct(ContainerInterface $container, VeganUrlGenerator $generator, EntityManager $entityManager = null)
     {
         $this->container = $container;
         $this->generator = $generator;
         $this->menuCollection = new MenuCollection();
+
+        $this->entityManager = ($entityManager instanceof \Doctrine\ORM\EntityManagerInterface) ? $entityManager : $container->get('doctrine.orm.default_entity_manager');
         $this->connection = $container->get('doctrine.dbal.default_connection');
         $request = $this->container->get('request');
         $request->setDefaultLocale($container->getParameter('locale'));
@@ -177,11 +185,8 @@ class DatabaseMenuBuilder
         $packOfMenuID = array();
 
         /** 1. vybereme všechny aktivní menu */
-        try {
-            $menus = $this->findMenus($anchors);
-        } catch (\Exception $e) {
-            $menus = array();
-        }
+
+        $menus = $this->findMenus($anchors);
 
         $builders = array();
 
@@ -194,16 +199,15 @@ class DatabaseMenuBuilder
         }
 
         /** 2. načteme kompletní stromy menu v jediném SQL dotazu. Setřídíme nejdříve podle menu_id a poté left */
-        try {
-            $tree = $this->findItems($packOfMenuID);
-        } catch (\Exception $e) {
-            $tree = array();
-        }
+
+        $tree = $this->findItems($packOfMenuID);
+        $defaultRoutes = array();
 
         foreach ($tree as $index => $row)
         {
             /** @var MenuBuilder $builder */
             $builder = $builders[$row['menu_anchor']];
+            $defaultRoutes[$row['menu_anchor']] = $row['default_route'];
 
             $options = array(
                 'name' => $row['name'],
@@ -211,6 +215,7 @@ class DatabaseMenuBuilder
                 'parent' => $row['parent_anchor'],
                 'permalink' => $row['permalink'],
                 'route_name' => $row['route_name'],
+                'locale' => $row['locale'],
             );
 
             if (is_null($options['parent']) || empty($options['parent'])) {
@@ -227,10 +232,11 @@ class DatabaseMenuBuilder
 
         foreach ($builders as $builder) {
             $menu = $builder->getMenu();
+            $menu->setDefaultRouteName($defaultRoutes[$menu->getAnchor()]);
+            $menu->getItems()->setLocale($this->locale);
+
             if (array_key_exists($menu->getAnchor(), $rootNodes))
             {
-                // TODO: zamyslet se, jak odstranit zbytečné načítání položek z databáze :-)
-
                 $rootItem = $menu->findMenuItem($rootNodes[$menu->getAnchor()]);
                 if (false === $rootItem) {
                     throw new \InvalidArgumentException("DatabaseMenuBuilder::generate invalid option \$rootNodes! Menu anchor `{$rootNodes[$menu->getAnchor()]}` does not exists for Menu `{$menu->getAnchor()}`!");
@@ -291,34 +297,24 @@ class DatabaseMenuBuilder
             return array();
         }
 
-        if (0 === count($anchors)) {
-            $whereAnchors = null;
-        } else {
-            foreach ($anchors as $index => $anchor) {
-                $anchors[$index] = '\'' . $anchor . '\'';
-            }
-            $whereAnchors = " AND menu.`anchor` IN (" . implode(',', $anchors) . ") ";
+        $builder = $this->entityManager->createQueryBuilder();
+        $builder
+            ->select('menu.id')
+            ->addSelect('menu.anchor')
+            ->addSelect('translation.name')
+            ->from('VeganMenuBundle:VeganMenu', 'menu')
+            ->leftJoin('menu.translation', 'translation')
+            ->where('menu.deletedAt is null')
+            ->andWhere('menu.isActive = 1')
+            ->andWhere('translation.locale = :locale')
+            ->setParameter('locale', $this->locale, \PDO::PARAM_STR)
+        ;
+
+        if (count($anchors) > 0) {
+            $builder->andWhere($builder->expr()->in('menu.anchor', $anchors));
         }
 
-        $sql = <<<MYSQL
-            SELECT
-              menu.`id`,
-              menu.`anchor`,
-              trans.`name`
-            FROM `vegan_menu` menu
-            LEFT JOIN `vegan_menu_i18l` trans ON (trans.`menu_id` = menu.`id` AND trans.`locale` = :locale)
-            WHERE
-                menu.`is_active` = 1
-            AND (menu.`deleted_at` IS NULL OR menu.`deleted_at` = '')
-            {$whereAnchors}
-MYSQL;
-        $sql = preg_replace('/\s+/', ' ', $sql);    // odebereme zbytečné mezery ...
-
-        $stmt = $this->connection->prepare($sql);
-        $stmt->bindParam(':locale', $this->locale, \PDO::PARAM_STR);
-        $stmt->execute();
-
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $builder->getQuery()->getArrayResult();
     }
 
 
@@ -338,38 +334,65 @@ MYSQL;
             return array();
         }
 
-        // TODO: zamyslet se, zda načítat položky, které neobsahují překlad a nebo informace o routě
+        $builder = $this->entityManager->createQueryBuilder();
 
-        // TODO: zahrnout do položek i tabulky *_extra pro načítání dalších funkcionalit (class, obrázky apod.)
+        $builder
+            ->from('VeganMenuBundle:VeganMenuItem', 'item')
+            ->leftJoin('item.translation', 'translation')
+            ->leftJoin('item.parent', 'parent')
+            ->leftJoin('item.menu', 'menu')
+            ->leftJoin('menu.translation', 'menuTranslation')
+            ->addSelect('translation.name')
+            ->addSelect('translation.slug')
+            ->addSelect('translation.permalink')
+//            ->addSelect('item.treeLeft')
+//            ->addSelect('item.treeRight')
+//            ->addSelect('item.treeLevel')
+            ->addSelect('menu.anchor AS menu_anchor')
+            ->addSelect('parent.anchor AS parent_anchor')
+            ->addSelect('item.anchor')
+            ->addSelect('CASE WHEN (translation.route IS NOT NULL) THEN translation.route ELSE menuTranslation.defaultRoute END AS route_name')
+            ->addSelect('menuTranslation.defaultRoute as default_route')
+            ->addSelect('translation.locale')
+            ->addSelect('menuTranslation.locale as menu_locale')
+//            ->orderBy('item.menu', 'ASC')
+//            ->addOrderBy('item.treeLeft', 'ASC')
+        ;
 
-        $sql = <<<MYSQL
-              SELECT
-                trans.`name`,
-                trans.`slug`,
-                trans.`permalink`,
-                menu_item.`anchor` AS parent_anchor,
-                item.`anchor`,
-                menu.`anchor` AS menu_anchor,
-                router.`route_name`
-              FROM `vegan_menu_item` item
-              LEFT JOIN `vegan_menu` menu ON (menu.`id` = item.`menu_id`)
-              LEFT JOIN `vegan_menu_item` menu_item ON (item.`parent_id` = menu_item.`id`)
-              LEFT JOIN `vegan_menu_item_i18l` trans ON (trans.`item_id` = item.`id`)
-              LEFT JOIN `vegan_router` router ON (trans.`route_id` = router.`route_id`)
-              WHERE
-                    item.`is_active` = 1
-                AND item.`deleted_at` IS NULL
-                AND item.`menu_id` IN (:inArray)
-              ORDER BY item.`menu_id` ASC, item.`tree_left` ASC
-MYSQL;
-        $stmt = $this->connection->prepare($sql);
-
-        $packOfMenuID = implode(',', $packOfMenuID);
-
-        $stmt->bindParam(':inArray', $packOfMenuID, \PDO::PARAM_STR);
-        $stmt->execute();
-
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $builder->getQuery()->getResult();
+//
+//        // TODO: zamyslet se, zda načítat položky, které neobsahují překlad a nebo informace o routě
+//
+//        // TODO: zahrnout do položek i tabulky *_extra pro načítání dalších funkcionalit (class, obrázky apod.)
+//
+//        $sql = <<<MYSQL
+//              SELECT
+//                trans.`name`,
+//                trans.`slug`,
+//                trans.`permalink`,
+//                menu_item.`anchor` AS parent_anchor,
+//                item.`anchor`,
+//                menu.`anchor` AS menu_anchor,
+//                router.`route_name`
+//              FROM `vegan_menu_item` item
+//              LEFT JOIN `vegan_menu` menu ON (menu.`id` = item.`menu_id`)
+//              LEFT JOIN `vegan_menu_item` menu_item ON (item.`parent_id` = menu_item.`id`)
+//              LEFT JOIN `vegan_menu_item_translation` trans ON (trans.`item_id` = item.`id`)
+//              LEFT JOIN `vegan_router` router ON (trans.`route_id` = router.`route_id`)
+//              WHERE
+//                    item.`is_active` = 1
+//                AND item.`deleted_at` IS NULL
+//                AND item.`menu_id` IN (:inArray)
+//              ORDER BY item.`menu_id` ASC, item.`tree_left` ASC
+//MYSQL;
+//        $stmt = $this->connection->prepare($sql);
+//
+//        $packOfMenuID = implode(',', $packOfMenuID);
+//
+//        $stmt->bindParam(':inArray', $packOfMenuID, \PDO::PARAM_STR);
+//        $stmt->execute();
+//
+//        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function getDefaultMenuOptions()

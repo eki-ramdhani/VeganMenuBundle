@@ -23,8 +23,8 @@ class ObjectManipulator
 
         while ( list ($key, $value) = each ($clone) ) {
             $aux = explode ("\0", $key);
-            $newkey = $aux[count($aux)-1];
-            $rtn[$newkey] = &$rtn['_SOURCE_KEYS_'][$key];
+            $newKey = $aux[count($aux)-1];
+            $rtn[$newKey] = &$rtn['_SOURCE_KEYS_'][$key];
         }
 
         return $rtn;
