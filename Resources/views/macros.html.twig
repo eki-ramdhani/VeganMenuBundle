@@ -14,7 +14,7 @@
             <li>
                 <a href="{{ item.uri }}">{{ item.name }}</a>
 
-                {% if displayChildren or item.special.displayChildren is defined and item.special.displayChildren %} {# Do you want to display children of this menu item? #}
+                {% if displayChildren or item.has('display_children') and item.get('display_children') %} {# Do you want to display children of this menu item? #}
 
                     {% if item.children is defined %}
 
@@ -34,7 +34,7 @@
 
 Special usage:
 
-class="{% if item.special.class is defined %}{{ item.special.class }} {% endif %}{% if item.active %}active{% endif %}"
+class="{% if item.attributes.class is defined %}{{ item.attributes.class }} {% endif %}{% if item.active %}active{% endif %}"
 
 #}
 
@@ -44,15 +44,23 @@ class="{% if item.special.class is defined %}{{ item.special.class }} {% endif %
     {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}{# and dont't change this .. #}
 
     {% if menuItems|length > 0 %}
+
         <ul class="my-menu-list">
+
             {% for item in menuItems %}
-                <li class="my-item-class{% if item.active is defined and item.active %} active{% endif %}">
-                    <a href="{{ item.uri }}"{% if item.special.linkClass is defined %} class="{{ item.special.linkClass }}"{% endif %}>
-                        {% if item.special.linkIcon is defined %}<i class="{{ item.special.linkIcon }}"></i>{% endif %} {# we can set MenuItem own custom special attributes, by this: $menuItem->special->add('linkIcon', 'fa fa-user'); #}
+
+                <li class="my-item-class{% if item.active %} active{% endif %}">
+                    <a href="{{ item.uri }}"{% if item.has('link_class') %} class="{{ item.get('link_class') }}"{% endif %}>
+                        {% if item.has('icon') %}
+                            <i class="{{ item.get('icon') }}"></i>
+                        {% endif %}
                         {{ item.name }}
                     </a>
                     {% if displayChildren %}
-                        {% if item.children is defined %}
+                        {% if item.hasChildren %}
+                            {% if item.has('display_children') %}
+                                {% set displayChildren = item.get('display_children') %}
+                            {% endif %}
                             {{ _self.custom_menu_render(item.children, displayChildren) }}
                         {% endif %}
                     {% endif %}

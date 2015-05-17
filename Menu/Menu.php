@@ -612,9 +612,11 @@ class Menu
      *
      * @param string|MenuItem $itemAnchor
      * @param bool $startWithSlash Do you want permalink starting with slash /?
-     * @param bool $endWithSlash   Do you want permalink ending with slash /?
+     * @param bool $endWithSlash Do you want permalink ending with slash /?
+     * @param null $prepend Prepend before permalink
+     * @param null $append  Append after permalink
      */
-    public function generatePermalink($itemAnchor, $startWithSlash = false, $endWithSlash = false)
+    public function generatePermalink($itemAnchor, $startWithSlash = false, $endWithSlash = false, $prepend = null, $append = null)
     {
         $slugs = array();
         $permalink = null;
@@ -645,6 +647,8 @@ class Menu
         if (true === $endWithSlash) {
             $permalink .= '/';
         }
+
+        $permalink = $prepend . $permalink . $append;
 
         $item = $this->findMenuItem($itemAnchor);
         $item->setPermalink($permalink);

@@ -5,6 +5,7 @@
 
 namespace Vegan\MenuBundle\Menu;
 
+use Doctrine\Common\Collections\ArrayCollection;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Vegan\MenuBundle\Component\SlugGenerator;
 use Symfony\Component\Routing\Generator\UrlGenerator;
@@ -81,6 +82,7 @@ class MenuBuilder
     /** @var VeganUrlGenerator $generator Generator for URIs */
     protected $generator;
 
+
     public function __construct(ContainerInterface $container, VeganUrlGenerator $generator, $useCaching = false)
     {
         $this->container = $container;
@@ -93,8 +95,9 @@ class MenuBuilder
         }
     }
 
+
     /**
-     * Create new menu catchable by `anchor` (for any locale)
+     * Create new Menu catchable by `anchor` (for any locale)
      *
      * @param string $menuAnchor  Menu `anchor` to grab menu for any locale
      * @param string $defaultRouteName Default route name will be used for each items without option route_name
@@ -167,26 +170,31 @@ class MenuBuilder
      */
     public function getDefaultMenuOptions()
     {
-        // TODO: zahrnout všechna nastavení do kódu!
         return array(
+            'default_attributes' => new ArrayCollection(),  // you can specify default_attributes for every MenuItem tree! (of course, you can override MenuItem option `attributes`)
             'slug' => array(
                 'auto_generate' => false,
                 'delimiter' => '-',         // if you will set auto_generate => true, then the delimiter will be used for join words (For example `hello how are you` with delimiter '-' will generate slug: `hello-how-are-you`
                 'remove_words' => array(),  // do you want to remove some words from `name` before creating `slug`?
-                'generate_from' => array('name'),  // can be any callables in object MenuItem::get*(), for example id, name, active, locale ..
-                'rewrite_original' => false,// if used auto_generate, do you want rewrite original slug which was set manualy?
+                'generate_from' => array('name'),  // can be any callables in object MenuItem::get*(), for example id, name, active, locale .. Of course you can specify more callables like array('id','name') > then slug will be: 152-my-slug
+                'rewrite_original' => false,// if used auto_generate, do you want rewrite original slug which was set manually?
+                'prepend' => '',    // prepend some string before slug (can be any string)  TODO: include to code
+                'append' => '',     // append some string after slug (can be .html)         TODO: include to code (to the method CreateItem too)
             ),
             'permalink' => array(
-                'auto_generate' => false,   // do you want auto generate `permalink` for whole menu tree?
-                'slash_start' => false,     // start permalinks with slash?
-                'slash_end' => false,       // end permalinks with slash?
-                'rewrite_original' => false,// if used auto_generate, do you want rewrite original permalink which was set manualy?
+                'delimiter' => '/',          // you can specify custom slugs delimiter
+                'auto_generate' => false,    // do you want auto generate `permalink` for whole menu tree?
+                'slash_start' => false,      // start permalinks with slash?
+                'slash_end' => false,        // end permalinks with slash?
+                'rewrite_original' => false, // if used auto_generate, do you want rewrite original permalink which was set manually?
+                'prepend' => '',             // prepend some string before slug (can be any string)  TODO: include to code
+                'append' => '',              // append some string after slug (can be .html)         TODO: include to code (to the method CreateItem too)
             ),
             'uri' => array(
-                'auto_generate' => true,    // do you want auto generate MenuItem URI? e.g. /my-route/my-route-slug
+                'auto_generate' => true,    // do you want auto generate MenuItem URI? e.g. /my-route-param/my-route-slug
                 'path_type' => UrlGenerator::ABSOLUTE_PATH, // Path-type must implement UrlGenerator constant
             ),
-            'try_find_parents' => true, // do you want to try find parents in method getMenu() ?
+            'try_find_parents' => true, // do you want to try find parents in method getMenu() ? If you will turn off this feature, then you will not be able to set parent before creating parent MenuItem
         );
     }
 
@@ -240,7 +248,7 @@ class MenuBuilder
                 $generateSlug = $this->getOption('slug', 'rewrite_original');
             }
 
-            if (array_key_exists('slug_generate', $options)) {
+            if (array_key_exists('slug_generate', $options) && false === $this->getOption('slug', 'rewrite_original')) {
                 $generateSlug = (bool)$options['slug_generate'];
             }
 
@@ -249,12 +257,16 @@ class MenuBuilder
                 $delimiter = array_key_exists('slug_delimiter', $options) ? (string)$options['slug_delimiter'] : $this->getOption('slug', 'delimiter');
                 $removeWords = array_key_exists('slug_remove_words', $options) ? (array)$options['slug_remove_words'] : $this->getOption('slug', 'remove_words');
                 $from = array_key_exists('slug_generate_from', $options) ? $options['slug_generate_from'] : $this->getOption('slug', 'generate_from');
+                $prepend = array_key_exists('slug_prepend', $options) ? $options['slug_prepend'] : $this->getOption('slug', 'prepend');
+                $append = array_key_exists('slug_append', $options) ? $options['slug_append'] : $this->getOption('slug', 'append');
 
                 $this->menuItemsGenerateSlug[] = array(
                     'item' => $item,
                     'delimiter' => $delimiter,
                     'remove_words' => $removeWords,
                     'generate_from' => $from,
+                    'prepend' => $prepend,
+                    'append' => $append,
                 );
             }
 
@@ -269,10 +281,16 @@ class MenuBuilder
                 if (array_key_exists('slug_generate_from', $options)) {
                     unset($options['slug_generate_from']);
                 }
+                if (array_key_exists('slug_prepend', $options)) {
+                    unset($options['slug_prepend']);
+                }
+                if (array_key_exists('slug_append', $options)) {
+                    unset($options['slug_append']);
+                }
             }
 
-            if (array_key_exists('slug_generate_from', $options) || array_key_exists('slug_delimiter', $options) || array_key_exists('slug_remove_words', $options)) {
-                throw new \InvalidArgumentException("MenuItem with anchor `{$item->getAnchor()}` has option `slug_generate_from`, `slug_delimiter` or `slug_remove_words`. This options require option `slug`!");
+            if (array_key_exists('slug_generate_from', $options) || array_key_exists('slug_delimiter', $options) || array_key_exists('slug_remove_words', $options) || array_key_exists('slug_append', $options) || array_key_exists('slug_prepend', $options)) {
+                throw new \InvalidArgumentException("MenuItem with anchor `{$item->getAnchor()}` has option `slug_generate_from`, `slug_delimiter`, `slug_remove_words`, `slug_prepend` or `slug_append`. This options require option `slug`!");
             }
 
             /** PERMALINK */
@@ -293,11 +311,18 @@ class MenuBuilder
 
             if ($generatePermalink) {
                 $slashStart = array_key_exists('permalink_slash_start', $options) ? $options['permalink_slash_start'] : $this->getOption('permalink', 'slash_start');
-                $slashEnd = array_key_exists('permalink_slash_end', $options) ? $options['permalink_slash_end'] : $this->getOption('permalink', 'slash_end');
+                $slashEnd =   array_key_exists('permalink_slash_end', $options)   ? $options['permalink_slash_end']   : $this->getOption('permalink', 'slash_end');
+                $prepend =    array_key_exists('permalink_prepend', $options)     ? $options['permalink_prepend']     : $this->getOption('permalink', 'prepend');
+                $append =     array_key_exists('permalink_append', $options)      ? $options['permalink_append']      : $this->getOption('permalink', 'append');
+                $delimiter =  array_key_exists('permalink_delimiter', $options)   ? $options['permalink_delimiter']   : $this->getOption('permalink', 'delimiter');
+
                 $this->menuItemsGeneratePermalink[] = array(
                     'item' => $item,
                     'start' => (bool)$slashStart,
                     'end' => (bool)$slashEnd,
+                    'prepend' => $prepend,
+                    'append' => $append,
+                    'delimiter' => $delimiter,
                 );
             }
 
@@ -309,28 +334,35 @@ class MenuBuilder
                 if (isset($options['permalink_slash_end'])) {
                     unset($options['permalink_slash_end']);
                 }
+                if (isset($options['permalink_prepend'])) {
+                    unset($options['permalink_prepend']);
+                }
+                if (isset($options['permalink_append'])) {
+                    unset($options['permalink_append']);
+                }
             }
 
             if (array_key_exists('permalink_slash_start', $options) || array_key_exists('permalink_slash_end', $options)) {
                 throw new \InvalidArgumentException("Options `permalink_slash_start` and `permalink_slash_end` required option `permalink_generate` => true|false");
             }
 
-            /** SPECIAL */
-            if (array_key_exists('special', $options)) {
-                $itemSpecial = $item->getSpecial();
-                if (is_null($itemSpecial)) {
-                    $item->createSpecial();
-                    $itemSpecial = $item->getSpecial();
-                }
-                $special = $options['special'];
-                if (is_array($special)) {
-                    $itemSpecial->setArray($special);
-                } else if ($special instanceof MenuItemSpecial) {
-                    $item->setSpecial($special);
+            /** APPLY DEFAULT MENU ATTRIBUTES */
+
+            $attributes = clone $this->getOption('default_attributes');
+            $item->replaceAttributes($attributes);
+
+            /** ATTRIBUTES (will replace default menu attributes) */
+            if (array_key_exists('attributes', $options))
+            {
+                $attributes = $options['attributes'];
+                if ($attributes instanceof ArrayCollection || is_array($attributes))
+                {
+                    $item->addAttributes($attributes, true);
+
                 } else {
-                    throw new \InvalidArgumentException("Invalid \$options parameter: `special` must be associative array or instance of MenuItemSpecial!");
+                    throw new \InvalidArgumentException("Invalid \$options parameter `attributes`. Must be associative array or instance of ArrayCollection!");
                 }
-                unset($options['special']);
+                unset($options['attributes']);
             }
 
             /** LOCALE */
@@ -519,10 +551,12 @@ class MenuBuilder
             $item = $array['item'];
             $startSlash = $array['start'];
             $endSlash = $array['end'];
-            $this->menu->generatePermalink($item->getAnchor(), $startSlash, $endSlash);
-//            unset($this->menuItemsGeneratePermalink[$index]);
+            $prepend = $array['prepend'];
+            $append = $array['append'];
+
+            $this->menu->generatePermalink($item->getAnchor(), $startSlash, $endSlash, $prepend, $append);
+            unset($this->menuItemsGeneratePermalink[$index]);
         }
-//        dump($this->menuItemsGeneratePermalink);
     }
 
 
@@ -537,6 +571,9 @@ class MenuBuilder
             $delimiter = $array['delimiter'];
             $remove = $array['remove_words'];
             $from = $array['generate_from'];
+            $prepend = $array['prepend'];
+            $append = $array['append'];
+
             if (is_array($from)) {
                 $slugParts = array();
                 foreach ($from as $fromPart) {
@@ -560,6 +597,7 @@ class MenuBuilder
                 $slug = SlugGenerator::generate($string, $remove, $delimiter);
             }
             $slug = trim($slug, $delimiter);
+            $slug = $prepend . $slug . $append;
             $item->setSlug($slug);
         }
     }
