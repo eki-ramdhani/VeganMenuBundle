@@ -6,8 +6,6 @@
 namespace Vegan\MenuBundle\Menu;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\Routing\CompiledRoute;
-use Vegan\MenuBundle\Component\ObjectManipulator;
 use Vegan\MenuBundle\Component\SlugGenerator;
 use Symfony\Component\Routing\Generator\UrlGenerator;
 use Nette\Caching\Cache;
@@ -468,18 +466,21 @@ class MenuBuilder
                 if (null === $route) {
                     throw new \InvalidArgumentException("Route name `{$routeName}` for MenuItem `{$child->getAnchor()}` does not exist!");
                 }
+
+                $pathVariables = array();
+                $pathRequirements = preg_match('/\{(.*)\}/', $route->getPath(), $matches);  // we will extract all requirements from route path like {slug} or {permalink}
+                if (is_array($matches) && count($matches) > 0) {
+                    foreach ($matches as $match) {
+                        $match = preg_replace('/\{|\}/', '', $match);
+                        $pathVariables[$match] = $match;    // can be for example `slug` or `permalink` or `id`
+                    }
+                }
+
                 $options = array();
 
-                /** HACK how we can access to the private (or protected) variables inside some Object like Route::$compiled */
-                $routeObjectAsArray = ObjectManipulator::objectToArray($route);
-                /** @var CompiledRoute $compiled */
-                $compiled = $routeObjectAsArray['compiled'];
-
-                $variables = $compiled->getVariables();
-
-                foreach ($variables as $index => $key)
+                foreach ($pathVariables as $index => $key)
                 {
-                    $callable = array($child, 'get'.ucfirst(strtolower($key)));
+                    $callable = array($child, 'get'.ucfirst($key));
                     if (is_callable($callable)) {
                         $options[$key] = call_user_func($callable);
                     }

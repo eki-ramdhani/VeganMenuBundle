@@ -5,15 +5,16 @@
 
 namespace Vegan\MenuBundle\Menu;
 
-use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\Query;
 use Nette\Caching\Cache;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 
 class DatabaseMenuBuilder
 {
-    /** @var Connection $connection Database connection (Could be Doctrine DBAL or PHP \PDO */
-    protected $connection;
+    /** @var \Doctrine\ORM\EntityManager $entityManager */
+    protected $entityManager;
 
     /** @var string $locale Default locale */
     protected $locale;
@@ -40,19 +41,32 @@ class DatabaseMenuBuilder
     /**
      * @param ContainerInterface $container
      * @param VeganUrlGenerator $generator
+     * @param EntityManager $entityManager
      */
-    public function __construct(ContainerInterface $container, VeganUrlGenerator $generator)
+    public function __construct(ContainerInterface $container, VeganUrlGenerator $generator, EntityManager $entityManager = null)
     {
         $this->container = $container;
         $this->generator = $generator;
         $this->menuCollection = new MenuCollection();
-        $this->connection = $container->get('doctrine.dbal.default_connection');
+
+        $this->entityManager = ($entityManager instanceof \Doctrine\ORM\EntityManagerInterface) ? $entityManager : $container->get('doctrine.orm.default_entity_manager');
         $request = $this->container->get('request');
         $request->setDefaultLocale($container->getParameter('locale'));
         $this->locale = $request->getLocale();
     }
 
-    public function cache($useCache = true)
+    /**
+     * If you want to set another EntityManager before run method `generate()`
+     *
+     * @param \Doctrine\ORM\EntityManagerInterface $entityManager
+     */
+    public function setEntityManager(\Doctrine\ORM\EntityManagerInterface $entityManager)
+    {
+        $this->entityManager = $entityManager;
+    }
+
+    /** @internal */
+    private function cache($useCache = true)
     {
         if (true === $useCache) {
             $this->cache = $this->container->get('nette.caching')->getCache();
@@ -62,11 +76,17 @@ class DatabaseMenuBuilder
         $this->useCache = (bool)$useCache;
     }
 
+    /**
+     * Enable Nette/Caching component for DatabaseMenuBuilder and speed up you Menu generations (you can simply clean cache if you want rebuild Menu tree)
+     */
     public function cacheEnable()
     {
         $this->cache(true);
     }
 
+    /**
+     * Disable Nette/Caching component and every Request will look to the database (for actual items)
+     */
     public function cacheDisable()
     {
         $this->cache(false);
@@ -121,13 +141,21 @@ class DatabaseMenuBuilder
     }
 
 
-    public function setActiveItem(array $by = array())
+    public function setActiveItem($URI)
     {
-        // TODO: nastavit aktuální položku menu podle různých parametrů nebo kritérií
+        $this->isLoaded();
+
+        $anchors = $this->menuCollection->getAllMenuAnchors();
+        foreach ($anchors as $anchor) {
+            $menu = $this->menuCollection->getMenu($anchor);
+            // TODO: activate MenuItem by URI
+        }
     }
 
 
     /**
+     * Get whole loaded MenuCollection
+     *
      * @return MenuCollection
      * @throws \Exception
      */
@@ -140,19 +168,18 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Metoda, která vygeneruje požadovaná menu (identifikace podle `anchor` což je unikátní kotva celého menu, třeba 'footer' nebo 'main' apod.)
+     * Method that will generate MenuCollection from array $anchors (`anchor` is unique menu identifier)
      *
-     * Tato metoda dokáže využívat cachování obsahu, takže není potřeba sahat pokaždé do databáze a pokaždé generovat obsah všech menu!
-     * Každé menu má svůj identifikátor: vegan.menu.[anchor].[locale] takže je možné je z cache odstranit, nebo vygenerovat novou cache ...
+     * Every menu has own cache by identifier: vegan.menu.[anchor].[locale] so you can clean or remove only some menus from cache
      *
-     * @param array $anchors Zůstane-li prázdné, generujeme všechna aktivní - nesmazaná menu. Chceme-li jen konkrétní kotvu, pak vložíme konkrétní hodnoty
-     * @param array $rootNodes   Chceme-li asociovat pro menu anchor root položku (například chceme načíst uzel main.item-1)
-     * @param array $menuOptions Každé menu může mít vlastní nastavení, $menuOptions['footer'] = array('položky nastavení');
+     * @param array $anchors        Menu anchors you want generate
+     * @param array $rootNodes      Menu ROOT nodes you want to generate for Menu anchors (for example 'main-menu'.'guitar'
+     * @param array $menuOptions
      */
     public function generate(array $anchors = array(), array $rootNodes = array(), array $menuOptions = array())
     {
         /**
-         * At first we will look to the Cache system and will try to fetch some cached items.
+         * At first we will look to the Cache system and will try to fetch some cached Menus
          */
         $cachedMenus = array();
         if (true === $this->useCache) {
@@ -160,10 +187,10 @@ class DatabaseMenuBuilder
                 $this->cache(true);
             }
             foreach ($anchors as $index => $anchor) {
-                // například: vegan.menu.footer.cs_CZ
+                // for example: vegan.menu.footer.cs_CZ
                 $menuKey = 'vegan.menu.'.$anchor.'.'.$this->locale;
                 if (array_key_exists($anchor, $rootNodes)) {
-                    // chceme zobrazit nějaký uzel, takže musíme prohlédnout cache tohoto uzle
+                    // we want to display some Node, so we have to look to the node caching
                     $menuKey .= '.' . $rootNodes[$anchor];
                 }
                 $menu = $this->cache->load($menuKey);
@@ -176,12 +203,9 @@ class DatabaseMenuBuilder
 
         $packOfMenuID = array();
 
-        /** 1. vybereme všechny aktivní menu */
-        try {
-            $menus = $this->findMenus($anchors);
-        } catch (\Exception $e) {
-            $menus = array();
-        }
+        /** We will choose Menu IDs */
+
+        $menus = $this->findMenus($anchors);
 
         $builders = array();
 
@@ -193,17 +217,16 @@ class DatabaseMenuBuilder
             $packOfMenuID[] = $row['id'];
         }
 
-        /** 2. načteme kompletní stromy menu v jediném SQL dotazu. Setřídíme nejdříve podle menu_id a poté left */
-        try {
-            $tree = $this->findItems($packOfMenuID);
-        } catch (\Exception $e) {
-            $tree = array();
-        }
+        /** Next we will find whole Menus tree (by one query for all menus..) */
+
+        $tree = $this->findItems($packOfMenuID);
+        $defaultRoutes = array();
 
         foreach ($tree as $index => $row)
         {
             /** @var MenuBuilder $builder */
             $builder = $builders[$row['menu_anchor']];
+            $defaultRoutes[$row['menu_anchor']] = $row['default_route'];
 
             $options = array(
                 'name' => $row['name'],
@@ -211,6 +234,7 @@ class DatabaseMenuBuilder
                 'parent' => $row['parent_anchor'],
                 'permalink' => $row['permalink'],
                 'route_name' => $row['route_name'],
+                'locale' => $row['locale'],
             );
 
             if (is_null($options['parent']) || empty($options['parent'])) {
@@ -227,10 +251,11 @@ class DatabaseMenuBuilder
 
         foreach ($builders as $builder) {
             $menu = $builder->getMenu();
+            $menu->setDefaultRouteName($defaultRoutes[$menu->getAnchor()]);
+            $menu->getItems()->setLocale($this->locale);
+
             if (array_key_exists($menu->getAnchor(), $rootNodes))
             {
-                // TODO: zamyslet se, jak odstranit zbytečné načítání položek z databáze :-)
-
                 $rootItem = $menu->findMenuItem($rootNodes[$menu->getAnchor()]);
                 if (false === $rootItem) {
                     throw new \InvalidArgumentException("DatabaseMenuBuilder::generate invalid option \$rootNodes! Menu anchor `{$rootNodes[$menu->getAnchor()]}` does not exists for Menu `{$menu->getAnchor()}`!");
@@ -276,11 +301,11 @@ class DatabaseMenuBuilder
 
 
     /**
-     * Metoda pro získání všech menu podle 'anchor' (kotvy)
+     * Method for getting Menu
      *
      * @internal
      *
-     * @param array $anchors
+     * @param array $anchors    Array of Menu anchors we want to find
      * @param bool $loadAll
      *
      * @return array
@@ -291,40 +316,30 @@ class DatabaseMenuBuilder
             return array();
         }
 
-        if (0 === count($anchors)) {
-            $whereAnchors = null;
-        } else {
-            foreach ($anchors as $index => $anchor) {
-                $anchors[$index] = '\'' . $anchor . '\'';
-            }
-            $whereAnchors = " AND menu.`anchor` IN (" . implode(',', $anchors) . ") ";
+        $builder = $this->entityManager->createQueryBuilder();
+        $builder
+            ->select('menu.id')
+            ->addSelect('menu.anchor')
+            ->addSelect('translation.name')
+            ->from('VeganMenuBundle:VeganMenu', 'menu')
+            ->leftJoin('menu.translation', 'translation')
+            ->where('menu.deletedAt is null')
+            ->andWhere('menu.isActive = 1')
+            ->andWhere('translation.locale = :locale')
+            ->setParameter('locale', $this->locale, \PDO::PARAM_STR)
+        ;
+
+        if (count($anchors) > 0) {
+            $builder->andWhere($builder->expr()->in('menu.anchor', $anchors));
         }
 
-        $sql = <<<MYSQL
-            SELECT
-              menu.`id`,
-              menu.`anchor`,
-              trans.`name`
-            FROM `vegan_menu` menu
-            LEFT JOIN `vegan_menu_i18l` trans ON (trans.`menu_id` = menu.`id` AND trans.`locale` = :locale)
-            WHERE
-                menu.`is_active` = 1
-            AND (menu.`deleted_at` IS NULL OR menu.`deleted_at` = '')
-            {$whereAnchors}
-MYSQL;
-        $sql = preg_replace('/\s+/', ' ', $sql);    // odebereme zbytečné mezery ...
-
-        $stmt = $this->connection->prepare($sql);
-        $stmt->bindParam(':locale', $this->locale, \PDO::PARAM_STR);
-        $stmt->execute();
-
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $builder->getQuery()->getArrayResult();
     }
 
 
 
     /**
-     * Metoda pro získání celého stromu podle balíčku ID všech menu
+     * Method for getting whole Menu tree (find by pack of Menu IDs)
      *
      * @param array $packOfMenuID
      * @return array
@@ -338,40 +353,43 @@ MYSQL;
             return array();
         }
 
-        // TODO: zamyslet se, zda načítat položky, které neobsahují překlad a nebo informace o routě
+        $builder = $this->entityManager->createQueryBuilder();
 
-        // TODO: zahrnout do položek i tabulky *_extra pro načítání dalších funkcionalit (class, obrázky apod.)
+        $builder
+            ->from('VeganMenuBundle:VeganMenuItem', 'item')
+            ->leftJoin('item.translation', 'translation')
+            ->leftJoin('item.parent', 'parent')
+            ->leftJoin('item.menu', 'menu')
+            ->leftJoin('menu.translation', 'menuTranslation')
+            ->where($builder->expr()->in('item.menu', $packOfMenuID))
+            ->andWhere('item.isActive = 1')
+            ->andWhere('item.deletedAt IS NULL')
+            ->addSelect('translation.name')
+            ->addSelect('translation.slug')
+            ->addSelect('translation.permalink')
+            ->addSelect('item.treeLeft')
+            ->addSelect('item.treeRight')
+            ->addSelect('item.treeLevel')
+            ->addSelect('menu.anchor AS menu_anchor')
+            ->addSelect('parent.anchor AS parent_anchor')
+            ->addSelect('item.anchor')
+            ->addSelect('CASE WHEN (translation.route IS NOT NULL) THEN translation.route ELSE menuTranslation.defaultRoute END AS route_name')
+            ->addSelect('menuTranslation.defaultRoute as default_route')
+            ->addSelect('translation.locale')
+            ->addSelect('menuTranslation.locale as menu_locale')
+            ->orderBy('item.menu', 'ASC')
+            ->addOrderBy('item.treeLeft', 'ASC')
+        ;
 
-        $sql = <<<MYSQL
-              SELECT
-                trans.`name`,
-                trans.`slug`,
-                trans.`permalink`,
-                menu_item.`anchor` AS parent_anchor,
-                item.`anchor`,
-                menu.`anchor` AS menu_anchor,
-                router.`route_name`
-              FROM `vegan_menu_item` item
-              LEFT JOIN `vegan_menu` menu ON (menu.`id` = item.`menu_id`)
-              LEFT JOIN `vegan_menu_item` menu_item ON (item.`parent_id` = menu_item.`id`)
-              LEFT JOIN `vegan_menu_item_i18l` trans ON (trans.`item_id` = item.`id`)
-              LEFT JOIN `vegan_router` router ON (trans.`route_id` = router.`route_id`)
-              WHERE
-                    item.`is_active` = 1
-                AND item.`deleted_at` IS NULL
-                AND item.`menu_id` IN (:inArray)
-              ORDER BY item.`menu_id` ASC, item.`tree_left` ASC
-MYSQL;
-        $stmt = $this->connection->prepare($sql);
-
-        $packOfMenuID = implode(',', $packOfMenuID);
-
-        $stmt->bindParam(':inArray', $packOfMenuID, \PDO::PARAM_STR);
-        $stmt->execute();
-
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return $builder->getQuery()->getResult();
     }
 
+
+    /**
+     * Get default Menu options (from MenuBuilder)
+     *
+     * @return array
+     */
     public function getDefaultMenuOptions()
     {
         return $this->container->get('vegan.menu.builder')->getDefaultMenuOptions();
@@ -379,9 +397,9 @@ MYSQL;
 
 
     /**
-     * Check if collection of menus was loaded
+     * Check if MenuCollection was loaded
      *
-     * @throws \Exception
+     * @throws \Exception If MenuCollection was not loaded
      */
     private function isLoaded()
     {
