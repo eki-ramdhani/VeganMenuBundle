@@ -40,15 +40,27 @@ class="{% if item.attributes.class is defined %}{{ item.attributes.class }} {% e
 
 {# Sample how you can write your own custom macro! #}
 {% macro custom_menu_render(menu, displayChildren) %}
-    {% set menuItems = (menu.items.children is defined) ? menu.items.children : menu %}{# don't change this .. #}
-    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}{# and dont't change this .. #}
+    {% set menuItems = (menu.items.children is defined) ? menu.items.children : menu %} {# don't change this line #}
+    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}
+    {#
+    You can define your own MenuItem attributes
+        for example:
+        $builder->createItem('my-item', array(
+            'attributes' => array(
+                'icon' => 'fa fa-user',
+                'link_class' => 'btn btn-success'
+                'my.custom' => 'Hello World!',
+            )));
+
+    and then you can handle that attributes by methods:
+
+    item.has('attribute_name')    will return TRUE [item has that attribute] or FALSE [item doesn't have it]
+    item.get('attribute_name')    will return value of this attribute [if attribute is not defined, will return null!!!]
+    #}
 
     {% if menuItems|length > 0 %}
-
         <ul class="my-menu-list">
-
             {% for item in menuItems %}
-
                 <li class="my-item-class{% if item.active %} active{% endif %}">
                     <a href="{{ item.uri }}"{% if item.has('link_class') %} class="{{ item.get('link_class') }}"{% endif %}>
                         {% if item.has('icon') %}

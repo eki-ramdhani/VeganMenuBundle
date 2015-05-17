@@ -88,18 +88,38 @@ Create file macros.html.twig in your template directory
 ```
 {% macro custom_menu_render(menu, displayChildren) %}
     {% set menuItems = (menu.items.children is defined) ? menu.items.children : menu %} {# don't change this line #}
-    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}  {# and this line #}
+    {% set displayChildren = (displayChildren is not same as(false)) ? true : false %}
+    {#
+    You can define your own MenuItem attributes
+        for example:
+        $builder->createItem('my-item', array(
+            'attributes' => array(
+                'icon' => 'fa fa-user',
+                'link_class' => 'btn btn-success'
+                'my.custom' => 'Hello World!',
+            )));
+
+    and then you can handle that attributes by methods:
+
+    item.has('attribute_name')    will return TRUE [item has that attribute] or FALSE [item doesn't have it]
+    item.get('attribute_name')    will return value of this attribute [if attribute is not defined, will return null!!!]
+    #}
 
     {% if menuItems|length > 0 %}
-        <ul class="my-menu-list{% if menu.active is defined and menu.active %} active{% endif %}">
+        <ul class="my-menu-list">
             {% for item in menuItems %}
-                <li class="my-item-class{% if item.active is defined and item.active %} active{% endif %}">
-                    <a href="{{ item.uri }}"{% if item.special.linkClass is defined %} class="{{ item.special.linkClass }}"{% endif %}>
-                        {% if item.special.linkIcon is defined %}<i class="{{ item.special.linkIcon }}"></i>{% endif %} {# we can set MenuItem own custom special attributes, by this: $menuItem->special->add('linkIcon', 'fa fa-user'); #}
+                <li class="my-item-class{% if item.active %} active{% endif %}">
+                    <a href="{{ item.uri }}"{% if item.has('link_class') %} class="{{ item.get('link_class') }}"{% endif %}>
+                        {% if item.has('icon') %}
+                            <i class="{{ item.get('icon') }}"></i>
+                        {% endif %}
                         {{ item.name }}
                     </a>
                     {% if displayChildren %}
-                        {% if item.children is defined %}
+                        {% if item.hasChildren %}
+                            {% if item.has('display_children') %}
+                                {% set displayChildren = item.get('display_children') %}
+                            {% endif %}
                             {{ _self.custom_menu_render(item.children, displayChildren) }}
                         {% endif %}
                     {% endif %}
@@ -109,35 +129,49 @@ Create file macros.html.twig in your template directory
     {% endif %}
 {% endmacro %}
 ```
-and next you can render your menu with your custom macro
+and next you can render your menu with your custom_menu_render macro:
 ```
 {% import 'YourBundle:macros.html.twig' as macros %}
 {{ macros.custom_menu_render(mainMenu, true) }}
 ```
-And we did it :-)
+And your menu is rendered!
 
 #### Manipulations with Menu
 
-When we construct a Menu, we can do anything with that instance.
+When we build a Menu, we can do anything with that instance.
 
- * Position moving
+ **Position moving**
 ```php
  $mainMenu->moveItemToPosition('item-3', 10);   // will move item with anchor 'item-3' to the 10. position
  $mainMenu->moveItemToFirstPosition('item-1');  // will move 'item-1' to the first position
  $mainMenu->moveItemToLastPosition('item-2');   // will move 'item-2' to the last position
 ```
 
- * How to find MenuItem inside Menu?
+ **How to find MenuItem inside Menu?**
 ```php
  $myMenuItem = $mainMenu->findMenuItem('item-2');    // findMenuItem will return instance of MenuItem or false if nothing will be found
  if (false === $myMenuItem) {
     // MenuItem with anchor 'item-2' was not found in Menu tree
  }
 ```
+ **How can I add menu to cache?**
+```php
+$cache = $this->container->get('nette.caching');
+$cache->add('my.custom.menu.identifier', $myCustomMenu);
+// now the menu is cached! Check your cache directory (/app/cache/nette)
+```
+ **How can I load menu from cache?**
+```php
+$cache = $this->container->get('nette.caching');
+$menu = $cache->load('my.custom.menu.identifier');
+if (false === $menu) {
+    // Your menu is not in Cache system
+} else {
+    // Your menu is available to use (for example pass it to the view template)
+}
+```
 
- * How can I clean Menu from cache?
-If you want to rebuild your menu (like from database), you can use powerful caching tool nette/caching like this:
-
+ **How can I clean Menu from cache?**
 ```php
 $cache = $this->container->get('nette.caching');    // is installed with VeganMenuBundle
 $cache->remove('vegan.menu.[YOUR MENU ANCHOR]');    // if you used method $builder->enableCache() then your menu is in cache 'vegan.menu.' + menu anchor
@@ -160,19 +194,70 @@ Or you can force update your database schema:
 ```
 php app/console doctrine:schema:update --force
 ```
-##### 2. configure EntityManager for use inside VeganMenuBundle
-
+If there is some errors, you should add mappings to your doctrine entity manager configuration:
 ```
-# /app/config/config.yml
-
+doctrine:
+    orm:
+        default_entity_manager: default
+        entity_managers:
+            default:
+                connection: default
+                mappings:
+                    YourAppBundle: ~
+                    **VeganMenuBundle: ~**
 ```
+
+##### 2. configure EntityManager for VeganMenuBundle
+`app/config/config.yml`
+```
+vegan_menu:
+    entity_manager: my_custom_manager_name
+    # could be only manager name (like default) or whole service name (like doctrine.orm.default_entity_manager)
+```
+
+##### 3. Create help method for your Controller
+
+Now you can create your own method, that can load all MenuCollection to your Controller variable:
 
 ```php
-$loadMenuAnchors = array('main-menu', 'left-menu', 'footer-menu');
-/*
- * if you want to load root node for main-menu, we can use following feature:
- * $loadRootNodes = array('main-menu' => 'root-menu-item-anchor');
- */
-$builder = $this->container->get('vegan.menu.dynamic.builder');
+class CustomController extends Controller
+{
+    /** @var \Vegan\MenuBundle\Menu\MenuCollection $menuCollection */
+    private $menuCollection;
+    
+    public function loadMenuCollection(array $menuAnchors = array(), array $rootNodes = array(), $useCache = true)
+    {
+        if (count($menuAnchors) > 0) {
+            $builder = $this->container->get('vegan.menu.database.builder');    // is installed in VeganMenuBundle
+            if (true === $useCache) {
+                $builder->cacheEnable();
+            } else {
+                $builder->cacheDisable();
+            }
+            $builder->generate($menuAnchors, $rootNodes);
+            $this->menuCollection = $builder->getMenuCollection();
+        } else {
+            $this->menuCollection = new MenuCollection();
+        }
+    }
+}
 ```
 
+##### 4. Use MenuCollection in your Controller
+
+```php
+public function indexAction()
+{
+    $this->loadMenuCollection(array('main','footer','left'));
+    
+    return $this->render(':index.html.twig', array(
+        'mainMenu' => $this->menuCollection->getMenu('main'),
+        'footerMenu' => $this->menuCollection->getMenu('footer'),
+        'leftMenu' => $this->menuCollection->getMenu('left'),
+    ));
+}
+```
+
+##### 5. Render menus inside your template
+
+Use your own macro and render menu so simply!

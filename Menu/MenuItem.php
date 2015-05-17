@@ -224,7 +224,7 @@ class MenuItem
      */
     public function get($attributeKey)
     {
-        return $this->getAttribute($attributeKey);
+        return $this->attributes->get($attributeKey);   // if attributeKey is not defined, then return null!
     }
 
     /**
@@ -240,6 +240,11 @@ class MenuItem
 
     //----
 
+    /**
+     * Get attribute by key. Will throw Exception if attribute is null!
+     * @param $attributeKey
+     * @return mixed|null
+     */
     public function getAttribute($attributeKey)
     {
         $attr = $this->attributes->get($attributeKey);
