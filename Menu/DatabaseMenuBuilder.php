@@ -233,7 +233,12 @@ class DatabaseMenuBuilder
 
         foreach ($builders as $builder) {
             $menu = $builder->getMenu();
-            $menu->setDefaultRouteName($defaultRoutes[$menu->getAnchor()]);
+            if (is_array($defaultRoutes) && array_key_exists($menu->getAnchor(), $defaultRoutes)) {
+                $menu->setDefaultRouteName($defaultRoutes[$menu->getAnchor()]);
+            } else {
+                throw new \LogicException("DatabaseMenuBuilder::generate Menu with anchor `{$menu->getAnchor()}` does not have any MenuItems!");
+                // TODO: refactor that exception if Menu does not have any MenuItem (how to setup default route_name?)
+            }
             $menu->getItems()->setLocale($this->locale);
 
             if (array_key_exists($menu->getAnchor(), $rootNodes))
