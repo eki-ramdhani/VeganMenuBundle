@@ -20,25 +20,38 @@ class Menu
     protected $defaultRouteName;
 
 
+    /**
+     * @param string $menuAnchor
+     * @param string $defaultRouteName
+     */
     public function __construct($menuAnchor, $defaultRouteName)
     {
         $this->anchor = $menuAnchor;
         $this->defaultRouteName = $defaultRouteName;
         $this->items = new MenuItem('root');
-        $this->items->removeChildren();
-        $this->activeItem = null;
     }
 
+    /**
+     * @return string
+     */
     public function getDefaultRouteName()
     {
         return $this->defaultRouteName;
     }
 
+    /**
+     * @param $routeName
+     * @return $this
+     */
     public function setDefaultRouteName($routeName)
     {
         $this->defaultRouteName = $routeName;
+        return $this;
     }
 
+    /**
+     * @return MenuItem
+     */
     public function getItems()
     {
         return $this->items;

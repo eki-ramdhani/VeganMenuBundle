@@ -155,6 +155,11 @@ class DatabaseMenuBuilder
      * @param array $anchors      Which menu `anchor` we want load?
      * @param array $rootNodes    Do you want associate Root node for some menu?
      * @param array $menuOptions  Do you want pass to the menu default options? array('menu-anchor' => $menuOptions)
+     *
+     * @throws \Doctrine\DBAL\DBALException
+     * @throws \InvalidArgumentException
+     * @throws \LogicException
+     * @throws \Nette\InvalidArgumentException
      */
     public function generate(array $anchors = array(), array $rootNodes = array(), array $menuOptions = array())
     {
@@ -219,11 +224,11 @@ class DatabaseMenuBuilder
                 'attributes' => new ArrayCollection(array('class' => 'nav nav-pills')),
             );
 
-            if (is_null($options['parent']) || empty($options['parent'])) {
+            if (null === $options['parent'] || empty($options['parent'])) {
                 unset($options['parent']);
             }
 
-            if (is_null($options['permalink']) || empty($options['permalink'])) {
+            if (null === $options['permalink'] || empty($options['permalink'])) {
                 unset($options['permalink']);
                 $options['permalink_generate'] = true;
             }
@@ -297,7 +302,7 @@ class DatabaseMenuBuilder
      *
      * @return array
      */
-    private function findMenus(array $anchors = array(), $loadAll = false)
+    protected function findMenus(array $anchors = array(), $loadAll = false)
     {
         if (false === $loadAll && 0 === count($anchors)) {
             return array();
@@ -335,7 +340,7 @@ class DatabaseMenuBuilder
      *
      * @internal
      */
-    private function findItems(array $packOfMenuID = array())
+    protected function findItems(array $packOfMenuID = array())
     {
         if (0 === count($packOfMenuID)) {
             return array();
@@ -385,12 +390,12 @@ class DatabaseMenuBuilder
     /**
      * Check if collection of menus was loaded
      *
-     * @throws \Exception
+     * @throws \LogicException
      */
-    private function isLoaded()
+    protected function isLoaded()
     {
         if (true !== $this->loaded) {
-            throw new \Exception("DatabaseMenuBuilder: No menu was loaded! At first you have to call method `generate` before asking about menu or item.");
+            throw new \LogicException('DatabaseMenuBuilder: No menu was loaded! At first you have to call method `generate` before asking about menu or item.');
         }
     }
 }

@@ -5,7 +5,6 @@
 
 namespace Vegan\MenuBundle\Menu;
 
-use Doctrine\ORM\NoResultException;
 use Symfony\Component\Routing\Generator\UrlGenerator;
 use Doctrine\Common\Collections\ArrayCollection;
 

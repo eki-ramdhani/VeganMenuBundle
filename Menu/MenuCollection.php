@@ -7,9 +7,7 @@ namespace Vegan\MenuBundle\Menu;
 
 class MenuCollection
 {
-    /**
-     * @var Menu[]
-     */
+    /** @var Menu[] */
     protected $collection;
 
     public function __construct()
@@ -42,6 +40,8 @@ class MenuCollection
     /**
      * @param Menu $menu
      * @return $this
+     *
+     * @throws \InvalidArgumentException
      */
     public function addMenu(Menu $menu)
     {
@@ -97,6 +97,8 @@ class MenuCollection
     /**
      * @param Menu[] $collection
      * @return $this
+     *
+     * @throws \InvalidArgumentException
      */
     public function setMenuCollection(array $collection = array())
     {
