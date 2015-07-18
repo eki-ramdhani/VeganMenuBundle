@@ -215,6 +215,7 @@ class DatabaseMenuBuilder
             $defaultRoutes[$row['menu_anchor']] = $row['default_route'];
 
             $options = array(
+                'id' => $row['id'],
                 'name' => $row['name'],
                 'slug' => $row['slug'],
                 'parent' => $row['parent_anchor'],
@@ -358,6 +359,7 @@ class DatabaseMenuBuilder
             ->addSelect('translation.name')
             ->addSelect('translation.slug')
             ->addSelect('translation.permalink')
+            ->addSelect('item.id')
             ->addSelect('item.treeLeft')
             ->addSelect('item.treeRight')
             ->addSelect('item.treeLevel')
