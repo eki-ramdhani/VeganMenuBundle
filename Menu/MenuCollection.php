@@ -17,6 +17,10 @@ class MenuCollection
         $this->collection = array();
     }
 
+    /**
+     * @param string $permalink
+     * @return array|bool
+     */
     public function findActiveMenuItemByPermalink($permalink)
     {
         $result = false;
@@ -37,6 +41,7 @@ class MenuCollection
 
     /**
      * @param Menu $menu
+     * @return $this
      */
     public function addMenu(Menu $menu)
     {
@@ -45,6 +50,7 @@ class MenuCollection
         }
         $this->collection[$menu->getAnchor()] = $menu;
 
+        return $this;
     }
 
     /**
@@ -70,12 +76,14 @@ class MenuCollection
 
     /**
      * @param string $menuAnchor
+     * @return $this
      */
     public function removeMenu($menuAnchor)
     {
         if ($this->hasMenu($menuAnchor)) {
             unset($this->collection[$menuAnchor]);
         }
+        return $this;
     }
 
     /**
@@ -88,9 +96,16 @@ class MenuCollection
 
     /**
      * @param Menu[] $collection
+     * @return $this
      */
     public function setMenuCollection(array $collection = array())
     {
+        foreach ($collection as $menu) {
+            if (!($menu instanceof Menu)) {
+                throw new \InvalidArgumentException('VeganMenuBundle MenuCollection::setMenuCollection argument 1 \$collection must be array of Menu instances! Got: ' . gettype($menu));
+            }
+        }
         $this->collection = $collection;
+        return $this;
     }
 }

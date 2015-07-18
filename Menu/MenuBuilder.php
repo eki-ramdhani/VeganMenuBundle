@@ -200,12 +200,13 @@ class MenuBuilder
 
 
     /**
-     * Vytvoření nové položky menu pomocí kotvy [itemAnchor] a parametrů [options]
+     * Create a new MenuItem by anchor [itemAnchor] and parameters [options]
      *
      * @param string $itemAnchor
      * @param array $options
      *
      * @return $this
+     * @throws \InvalidArgumentException
      */
     public function createItem($itemAnchor, array $options = array())
     {
@@ -421,7 +422,7 @@ class MenuBuilder
 
 
     /**
-     * Získání výsledného menu
+     * get result Menu
      *
      * @return Menu
      */
