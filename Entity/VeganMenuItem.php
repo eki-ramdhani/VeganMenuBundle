@@ -105,7 +105,7 @@ class VeganMenuItem
     private $menu;
 
     /**
-     * @ORM\ManyToMany(targetEntity="Vegan\MenuBundle\Entity\VeganMenuItemTranslation", cascade={"remove","persist","refresh"})
+     * @ORM\ManyToMany(targetEntity="Vegan\MenuBundle\Entity\VeganMenuItemTranslation", orphanRemoval=true, cascade={"remove","persist","refresh"})
      *
      * @ORM\JoinTable(name="vegan_menu_item_translations",
      *          joinColumns={
@@ -117,6 +117,12 @@ class VeganMenuItem
      *      )
      **/
     private $translation;
+
+
+    /**
+     * @ORM\ManyToMany(targetEntity="Vegan\MenuBundle\Entity\VeganMenuItemAttribute", orphanRemoval=true, cascade={"all"}, mappedBy="menuItem", orphanRemoval=true)
+     */
+    private $attribute;
 
 
 
@@ -395,4 +401,22 @@ class VeganMenuItem
         return $this;
     }
 
+    /**
+     * @return VeganMenuItemAttribute
+     */
+    public function getAttribute()
+    {
+        return $this->attribute;
+    }
+
+    /**
+     * @param VeganMenuItemAttribute $attribute
+     * @return VeganMenuItem
+     */
+    public function setAttribute(VeganMenuItemAttribute $attribute)
+    {
+        $this->attribute = $attribute;
+
+        return $this;
+    }
 }

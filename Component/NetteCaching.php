@@ -26,10 +26,11 @@ class NetteCaching
 
     /**
      * @param string $folder
+     * @param bool $createFolderIfNotExists
      */
-    public function __construct($folder)
+    public function __construct($folder, $createFolderIfNotExists = true)
     {
-        if (!file_exists($folder)) {
+        if (true === $createFolderIfNotExists && !file_exists($folder)) {
             mkdir($folder, 0777, true);
         }
         $this->folder = $folder;

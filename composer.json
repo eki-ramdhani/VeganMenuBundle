@@ -20,6 +20,10 @@
     "autoload":     {
         "psr-4": { "Vegan\\MenuBundle\\": "" }
     },
-    "minimum-stability": "alpha"
+    "minimum-stability": "dev",
+    "extra": {
+        "branch-alias": {
+            "dev-master": "0.1-dev"
+        }
+    }
 }
-
