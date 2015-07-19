@@ -10,6 +10,8 @@ use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\Query;
 use Nette\Caching\Cache;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Vegan\MenuBundle\Entity\VeganMenuItem;
+use Vegan\MenuBundle\Entity\VeganMenuItemAttribute;
 
 
 class DatabaseMenuBuilder
@@ -206,6 +208,8 @@ class DatabaseMenuBuilder
         /** Load Menu tree */
 
         $tree = $this->findItems($packOfMenuID);
+        $attributes = $this->findAttributes($packOfMenuID);
+
         $defaultRoutes = array();
 
         foreach ($tree as $index => $row)
@@ -213,6 +217,8 @@ class DatabaseMenuBuilder
             /** @var MenuBuilder $builder */
             $builder = $builders[$row['menu_anchor']];
             $defaultRoutes[$row['menu_anchor']] = $row['default_route'];
+
+            $packOfMenuItemID[] = $row['id'];
 
             $options = array(
                 'id' => $row['id'],
@@ -222,7 +228,7 @@ class DatabaseMenuBuilder
                 'permalink' => $row['permalink'],
                 'route_name' => $row['route_name'],
                 'locale' => $row['locale'],
-                'attributes' => new ArrayCollection(array('class' => 'nav nav-pills')),
+                'attributes' => (array_key_exists($row['menu_anchor'], $attributes) && array_key_exists($row['anchor'], $attributes[$row['menu_anchor']])) ? $attributes[$row['menu_anchor']][$row['anchor']] : new ArrayCollection(),
             );
 
             if (null === $options['parent'] || empty($options['parent'])) {
@@ -258,6 +264,7 @@ class DatabaseMenuBuilder
             }
 
             $this->menuCollection->addMenu($menu);
+
             if (true === $this->useCache) {
                 $menuKey = 'vegan.menu.'.$menu->getAnchor().'.'.$this->locale;
 
@@ -336,7 +343,7 @@ class DatabaseMenuBuilder
      * Get menus tree from database (by 1 query we will find Menu tree for every menu)
      *
      * @param array $packOfMenuID
-     * @return array
+     * @return VeganMenuItem[]
      * @throws \Doctrine\DBAL\DBALException
      *
      * @internal
@@ -369,13 +376,86 @@ class DatabaseMenuBuilder
             ->addSelect('CASE WHEN (translation.route IS NOT NULL) THEN translation.route ELSE menuTranslation.defaultRoute END AS route_name')
             ->addSelect('menuTranslation.defaultRoute as default_route')
             ->addSelect('translation.locale')
-            ->addSelect('menuTranslation.locale as menu_locale')
+            ->addSelect('menuTranslation.locale AS menu_locale')
+            ->andWhere('item.isActive = 1')
+            ->andWhere('item.deletedAt IS NULL')
+            ->andWhere('translation.locale = :locale')
+            ->andWhere('menuTranslation.locale = :locale2')
+            ->setParameter('locale', $this->locale)
+            ->setParameter('locale2', $this->locale)
             ->orderBy('item.menu', 'ASC')
             ->addOrderBy('item.treeLeft', 'ASC')
         ;
 
         return $builder->getQuery()->getResult();
     }
+
+
+
+    /**
+     * @param array $packOfMenuID
+     * @return array
+     */
+    protected function findAttributes(array $packOfMenuID = array())
+    {
+        $builder = $this->entityManager->createQueryBuilder();
+
+        $builder
+            ->from('VeganMenuBundle:VeganMenuItemAttribute', 'attribute')
+            ->join('attribute.menuItem', 'item')
+            ->join('item.translation', 'translation')
+            ->join('item.menu', 'menu')
+            ->addSelect('attribute')
+            ->addSelect('item')
+            ->addSelect('translation')
+            ->addSelect('menu')
+            ->andWhere($builder->expr()->in('menu.id', $packOfMenuID))
+            ->andWhere('attribute.locale = :locale')
+            ->andWhere('item.isActive = 1')
+            ->andWhere('item.deletedAt IS NULL')
+            ->andWhere('translation.locale = :locale2')
+            ->setParameter('locale', $this->locale)
+            ->setParameter('locale2', $this->locale)
+        ;
+
+        $array = $builder->getQuery()->getResult();
+        $temp = array();
+        $result = array();
+
+        foreach ($array as $row)
+        {
+            /** @var VeganMenuItemAttribute $row */
+            $items = $row->getMenuItems()->getIterator();
+            foreach ($items as $item)
+            {
+                /** @var VeganMenuItem $item */
+                $temp[$item->getMenu()->getAnchor()][$item->getAnchor()][] = $row;
+            }
+            $row->clearMenuItems();
+        }
+
+        foreach ($temp as $menuAnchor => $menuItems)
+        {
+            if (0 === count($menuItems)) {
+                continue;
+            }
+            foreach ($menuItems as $itemAnchor => $attributes)
+            {
+                if (0 === count($attributes)) {
+                    continue;
+                }
+                $attribute = new ArrayCollection();
+                foreach ($attributes as $attr)
+                {
+                    /** @var VeganMenuItemAttribute $attr */
+                    $attribute->set($attr->getAttribute(), $attr->getValue());
+                }
+                $result[$menuAnchor][$itemAnchor] = $attribute;
+            }
+        }
+        return $result;
+    }
+
 
 
     /**
