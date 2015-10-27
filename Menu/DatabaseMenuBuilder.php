@@ -387,7 +387,7 @@ class DatabaseMenuBuilder
             ->addOrderBy('item.treeLeft', 'ASC')
         ;
 
-        return $builder->getQuery()->getResult();
+        return $builder->getQuery()->getResult(Query::HYDRATE_ARRAY);
     }
 
 
@@ -398,6 +398,10 @@ class DatabaseMenuBuilder
      */
     protected function findAttributes(array $packOfMenuID = array())
     {
+        if (0 === count($packOfMenuID)) {
+            return array();
+        }
+
         $builder = $this->entityManager->createQueryBuilder();
 
         $builder

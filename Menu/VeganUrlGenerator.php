@@ -33,6 +33,10 @@ class VeganUrlGenerator
     /** @var UrlGenerator[]|array $generators */
     protected $generators = array();
 
+
+    /**
+     * @param ContainerInterface|null $container
+     */
     public function __construct(ContainerInterface $container = null)
     {
         if (null !== $container) {
@@ -41,6 +45,12 @@ class VeganUrlGenerator
     }
 
 
+    /**
+     * @param $routeName
+     * @param $parameters
+     * @param bool $referencePath
+     * @return null|string
+     */
     public function generate($routeName, $parameters, $referencePath = UrlGenerator::ABSOLUTE_PATH)
     {
         $url = null;
@@ -54,6 +64,11 @@ class VeganUrlGenerator
         return $url;
     }
 
+
+    /**
+     * @param $routeName
+     * @return null|\Symfony\Component\Routing\Route
+     */
     public function getRoute($routeName)
     {
         $route = null;
@@ -66,6 +81,11 @@ class VeganUrlGenerator
         return $route;
     }
 
+
+    /**
+     * @param ContainerInterface $container
+     * @return $this
+     */
     public function setContainer(ContainerInterface $container)
     {
         $this->container = $container;
